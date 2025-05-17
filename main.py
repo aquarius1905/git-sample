@@ -1,2 +1,2 @@
 def greet():
-    print("Hello, welcome to the program!")
+    print("Good afternoon, world!")
