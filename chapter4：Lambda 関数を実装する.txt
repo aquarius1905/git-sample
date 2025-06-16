@@ -1,0 +1,171 @@
+## 🧩 はじめに
+
+本章では、**SQS から受信した JSON データをバリデーション → CSV 変換 → S3 に保存する**という ETL 処理の中核部分を構築します。
+この処理は Lambda 関数内で実装され、本テンプレートの中心的なロジックとなります。
+
+
+## 🏗 処理の全体構成
+
+Lambda 関数では、以下のような処理を順番に行います。
+
+1. **SQS メッセージの受信（JSON）**
+2. **スキーマバリデーション（pydantic使用）**
+3. **CSV形式への変換**
+4. **S3 バケットへの保存**
+
+本章では、これらを段階的に実装します。
+
+
+## 📁 ディレクトリ構成のおさらい
+
+Lambda 関数のコードは以下のような構成です。
+
+```txt
+lambda-etl
+├── app/
+│   ├── core/
+│   │   ├── schema.py         # JSONスキーマ定義（pydantic）
+│   │   ├── csv_writer.py     # CSV出力処理
+│   │   └── s3_uploader.py    # S3アップロード処理
+│   └── main.py               # Lambda関数のエントリーポイント
+```
+
+
+## 🧪 ステップ①：pydantic でスキーマ定義
+
+まず、受け取る JSON の構造を定義します。
+
+### 📄 lambda-etl/app/core/schema.py
+
+```python
+from pydantic import BaseModel, Field
+from typing import List
+
+class DataRecord(BaseModel):
+    user_id: int = Field(..., example=123)
+    name: str = Field(..., example="山田太郎")
+    email: str = Field(..., example="taro@example.com")
+
+class SQSMessageBody(BaseModel):
+    records: List[DataRecord]
+```
+
+> この定義により、Lambda関数で受け取るデータの妥当性をチェックできます。
+
+
+## 📄 lambda-etl/app/core/csv\_writer.py
+
+CSV形式でデータを保存する処理を実装します。
+
+```python
+import csv
+from typing import List, Dict
+from io import StringIO
+
+def generate_csv(records: List[Dict]) -> str:
+    if not records:
+        raise ValueError("CSV出力対象のデータが空です")
+
+    fieldnames = records[0].keys()
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for row in records:
+        writer.writerow(row)
+
+    return output.getvalue()
+```
+
+
+## 📄 lambda-etl/app/core/s3\_uploader.py
+
+生成したCSV文字列をS3に保存します。
+
+```python
+import boto3
+from datetime import datetime
+
+s3 = boto3.client("s3")
+
+def upload_to_s3(bucket_name: str, key_prefix: str, csv_content: str) -> str:
+    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    object_key = f"{key_prefix}/output_{timestamp}.csv"
+
+    s3.put_object(
+        Bucket=bucket_name,
+        Key=object_key,
+        Body=csv_content.encode("utf-8"),
+        ContentType="text/csv"
+    )
+
+    return object_key
+```
+
+
+## 🚀 ステップ②：Lambda ハンドラーを実装
+
+### 📄 lambda-etl/app/main.py
+
+```python
+import json
+from app.core.schema import SQSMessageBody
+from app.core.csv_writer import generate_csv
+from app.core.s3_uploader import upload_to_s3
+
+BUCKET_NAME = "your-bucket-name"
+KEY_PREFIX = "etl-output"
+
+def lambda_handler(event, context):
+    try:
+        # SQSのメッセージを取り出す
+        message_body = event["Records"][0]["body"]
+        parsed_json = json.loads(message_body)
+
+        # スキーマバリデーション
+        payload = SQSMessageBody(**parsed_json)
+        records = [record.dict() for record in payload.records]
+
+        # CSV変換
+        csv_data = generate_csv(records)
+
+        # S3にアップロード
+        object_key = upload_to_s3(BUCKET_NAME, KEY_PREFIX, csv_data)
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "message": "ファイルをアップロードしました",
+                "s3_key": object_key
+            })
+        }
+
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({
+                "error": str(e)
+            })
+        }
+```
+
+
+## ✅ まとめ
+
+本章では、以下の構成要素を実装しました。
+
+| ファイル             | 内容                      |
+| ---------------- | ----------------------- |
+| `schema.py`      | 受信データのスキーマ定義（pydantic）  |
+| `csv_writer.py`  | JSON → CSV 変換処理         |
+| `s3_uploader.py` | S3 バケットへのアップロード処理       |
+| `main.py`        | Lambda関数のハンドラーとして各機能を統合 |
+
+
+## ▶️ 次章の内容
+
+> **補足：この章ではまだ Docker は起動しません。**  
+> Lambda 関数のロジックを実装しただけの状態なので、  
+> 実際に動かして確認する作業は、次章（テスト実行編）で行います。
+
+次章では、このLambda関数を**実際にローカルでテスト実行する方法**を解説します。
+`pytest` を使った単体テストと、`docker-compose` を用いた統合テストの基本を扱います。

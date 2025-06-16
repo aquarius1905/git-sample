@@ -1,0 +1,210 @@
+## 🛠 はじめに
+
+本章では、**Lambda 関数をローカルで開発・テストするための環境**を整えます。
+Poetry を使って Python の依存パッケージを管理し、
+Docker を使って手元で実行・テスト可能な開発基盤を構築します。
+
+AWS Lambda は通常クラウド上で実行されるため、**手元での検証が難しい**という課題があります。
+ここでは、できる限り本番に近い環境をローカルで再現し、
+**安全かつ効率的に開発・テストできる仕組み**を作ります。
+
+
+## 📦 Poetry で Python の依存を管理する
+
+まずは、Python の依存パッケージ管理に Poetry を使用します。
+
+### Poetry を使う理由
+
+* `requirements.txt` よりモダンで管理しやすい
+* すべての設定が `pyproject.toml` に集約される
+* 仮想環境も含めて統一的に扱える
+* `poetry.lock` によりバージョンが固定され、再現性が高い
+
+### 📄 lambda-etl/pyproject.toml
+
+```toml
+[tool.poetry]
+name = "lambda-etl"
+version = "0.1.0"
+description = "ETL processor with AWS Lambda"
+authors = ["you@example.com"]
+
+[tool.poetry.dependencies]
+python = "^3.13"
+boto3 = "^1.34.0"
+pydantic = "^2.10.3"
+pydantic-settings = "^2.6.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-cov = "^6.1.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+```
+
+> `boto3`：AWS SDK
+> `pydantic`：JSONバリデーション用
+> `pytest`：テストフレームワーク
+> `pytest-cov`：カバレッジ計測用
+
+
+## ✍️ ローカルで poetry.lock を生成する
+
+初回のセットアップでは、ローカルで `poetry.lock` を事前に作っておくとスムーズです。
+
+以下のコマンドで `poetry.lock` を生成できます。
+
+```bash
+poetry install --no-root
+```
+
+これにより、**依存関係がロックされて Docker ビルド時の再現性が高まります。**
+
+
+## 🔄 poetry.lock を手動で再生成したい場合
+
+依存バージョンを更新したい場合や、ロックファイルをリセットしたいときは以下の手順で行えます：
+
+```bash
+rm poetry.lock
+poetry install --no-root
+```
+
+この操作によって、`pyproject.toml` に従った最新の依存関係が再解決され、`poetry.lock` が再生成されます。
+
+
+## 🐳 Docker でローカル環境を構築する
+
+Poetry 環境を Lambda 実行環境に近づけるため、Docker を使って隔離された開発コンテナを構築します。
+
+### 📄 lambda-etl/Dockerfiles/Dockerfile.dev
+
+```dockerfile
+FROM python:3.13-slim
+
+# 作業ディレクトリを作成
+WORKDIR /app
+
+# 依存関係のインストール
+COPY pyproject.toml ./
+
+RUN pip install --upgrade pip \
+ && pip install poetry \
+ && poetry lock \
+ && poetry install --no-root
+
+# アプリケーションのコードをコピー
+COPY . .
+
+# デフォルトの実行コマンド（起動後にコンテナをすぐ終了させないため）
+CMD ["/bin/bash"]
+```
+
+> `--no-root` により、ライブラリとしての自身を除いてインストールする。
+
+
+## ⚙️ docker-compose.yml で起動設定をまとめる
+
+複雑な `docker run` を毎回打たなくてもよいように、
+`docker-compose` を使って起動を簡素化します。
+
+### 📄 lambda-etl/docker-compose.yml
+
+```yaml
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfiles/Dockerfile.dev
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: tail -f /dev/null
+    depends_on:
+      - localstack
+    environment:
+      - PYTHONPATH=/app
+
+  localstack:
+    image: localstack/localstack:3.3
+    environment:
+      - SERVICES=s3
+    ports:
+      - "4566:4566"
+```
+
+> `volumes` により、ローカルでコードを変更すると即座にコンテナに反映されるため、再ビルド不要で開発できます。
+
+
+## 🧰 Makefile で操作を簡略化する
+
+Poetry や Docker のコマンドは長くなりがちなので、開発効率のために Makefile にショートカットを定義しておきます。
+ここでは、よく使う操作をまとめて簡単に実行できるようにしています。
+
+### 📄 lambda-etl/Makefile
+
+```makefile
+.PHONY: up test lint format help
+
+up:
+	docker-compose up --build
+
+test:
+	poetry run pytest --cov=app tests/
+
+lint:
+	poetry run flake8 app tests
+
+format:
+	poetry run black app tests
+
+help:
+	@echo "make up      # Dockerで開発環境を起動"
+	@echo "make test    # テストを実行"
+	@echo "make lint    # コードの静的チェック"
+	@echo "make format  # コード整形"
+```
+
+> `make test` や `make up` のように、開発時に便利な操作をすぐ呼び出せます。
+> `make help` を実行すると、定義されたコマンドの一覧が表示されます。
+
+
+### 📝 補足：`.PHONY` とは？
+
+Makefile では、ターゲット名が実際のファイル名と重なると、コマンドがスキップされてしまうことがあります。
+`.PHONY` により「これはファイル名ではなく、**必ず実行すべきコマンド**である」と明示できます。
+
+複数のターゲットは、スペース区切りでまとめて指定できます：
+
+```makefile
+.PHONY: up test lint format help
+```
+
+こうしておくことで、たとえば `test` という名前のファイルが存在していても、
+`make test` は必ず実行されるようになります。
+
+
+## ✅ ファイル構成のまとめ
+
+本章で追加・編集したファイルは以下の通りです。
+
+```txt
+lambda-etl
+├── Dockerfiles/
+│   └── Dockerfile.dev
+├── docker-compose.yml
+├── Makefile
+├── pyproject.toml
+├── poetry.lock
+```
+
+これらを揃えることで、**ローカルで開発・テスト可能な Python Lambda 環境**が整います。
+
+
+## ▶️ 次章の内容
+
+次章では、Lambda 関数の実装に入ります。
+**SQS から受信した JSON データをバリデーション → CSV 変換 → S3 保存**するまでの処理を、
+実際のコードとともに構築していきましょう。

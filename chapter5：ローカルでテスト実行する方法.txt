@@ -1,0 +1,158 @@
+## 🧩 はじめに
+
+前章で Lambda 関数の中核ロジックを実装しました。
+本章では、それをローカル環境でテスト実行し、正常に動作するかを確認します。
+
+主に以下の3つの方法で動作確認を行います。
+
+* **pytest**：ユニットテストで関数単位の動作確認
+* **手動実行スクリプト**：実際の入力データを用いたテスト実行
+* **LocalStack**：S3 モック環境を使った統合テスト
+
+> 🔧 補足：この章で初めて Docker を起動します。
+> Chapter3 で構築した `docker-compose.yml` を使用してコンテナ環境を立ち上げます。
+
+
+## 📁 ディレクトリ構成（テスト＆手動実行ファイル）
+
+```
+lambda-etl/
+├── scripts/
+│   └── run_local.py
+├── tests/
+│   ├── conftest.py
+│   └── test_main.py
+```
+
+## 🐳 ステップ0：Docker コンテナのビルドと起動
+
+まずは、Docker 開発環境を立ち上げましょう。
+
+### ✅ ビルド（初回または Dockerfile を変更したとき）
+
+```bash
+docker-compose build
+```
+
+### ✅ コンテナの起動
+
+```bash
+docker-compose up -d
+```
+
+起動後、以下の 2 つのサービスが立ち上がります：
+
+* `app`：Lambda 関数の開発用コンテナ
+* `localstack`：S3 などの AWS サービスをモックする環境
+
+
+## 🧪 ステップ1：pytest によるユニットテスト
+
+### 📄 lambda-etl/tests/test\_main.py
+
+```python
+import json
+from app.main import lambda_handler
+
+def test_lambda_handler_success():
+    event = {
+        "Records": [
+            {
+                "body": json.dumps({
+                    "records": [
+                        {"user_id": 1, "name": "山田太郎", "email": "taro@example.com"},
+                        {"user_id": 2, "name": "佐藤花子", "email": "hanako@example.com"}
+                    ]
+                })
+            }
+        ]
+    }
+
+    response = lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 200
+    assert "s3_key" in body
+```
+
+### ✅ テストの実行
+
+```bash
+docker-compose run --rm app pytest
+```
+
+
+## 🧪 ステップ2：LocalStack を使った統合テスト
+
+### 🛠 docker-compose.yml の確認
+
+Chapter3 で、以下のように LocalStack を定義してあることを確認してください。
+
+```yaml
+services:
+  localstack:
+    image: localstack/localstack:3.3
+    environment:
+      - SERVICES=s3
+    ports:
+      - "4566:4566"
+```
+
+### 🔧 boto3 の設定変更（必要な場合）
+
+環境に応じて、S3 クライアントにエンドポイントを指定します。
+
+```python
+s3 = boto3.client("s3", endpoint_url="http://localstack:4566")
+```
+
+環境変数で制御する場合は `os.environ.get()` などを使いましょう。
+
+
+## 🚀 ステップ3：手動実行スクリプトで動作確認
+
+より直感的に動作を確認するために、Lambda 関数を直接呼び出すスクリプトを用意します。
+
+### 📄 lambda-etl/scripts/run_local.py
+
+```python
+import json
+from app.main import lambda_handler
+
+event = {
+    "Records": [
+        {
+            "body": json.dumps({
+                "records": [
+                    {"user_id": 1, "name": "山田太郎", "email": "taro@example.com"}
+                ]
+            })
+        }
+    ]
+}
+
+if __name__ == "__main__":
+    response = lambda_handler(event, None)
+    print(response)
+```
+
+### ✅ 実行方法
+
+```bash
+docker-compose run --rm app python scripts/run_local.py
+```
+
+
+## ✅ まとめ
+
+| テスト方法          | 説明                           |
+| -------------- | ---------------------------- |
+| `pytest`       | 単体テストで Lambda ハンドラーの動作確認     |
+| `run_local.py` | スクリプトによる手動実行                 |
+| `LocalStack`   | S3 モック環境を使った統合テスト（boto3 要調整） |
+
+
+## ▶️ 次章の内容
+
+次章では、**GitHub Actions による CI 環境構築**を行います。
+コードを push するたびに自動でテストを実行し、開発の品質と信頼性を高めましょう。

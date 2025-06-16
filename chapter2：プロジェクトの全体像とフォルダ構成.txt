@@ -1,0 +1,80 @@
+## 🧱 本章の概要
+
+本章では、本書で構築する ETL 処理 Lambda の「全体像」と「プロジェクト構成」を整理します。
+まずは、どのような処理を行い、どんな技術スタックで構成されているのかを確認していきましょう。
+
+
+## 🔄 システム全体の流れ
+
+本書で構築する ETL 処理は、以下のようなシンプルな流れで構成されています。
+
+```
+[SQS] → メッセージ受信（JSON）
+↓
+[Lambda] → バリデーション → CSV変換
+↓
+[S3] → ファイル保存
+```
+
+1. **SQS（Simple Queue Service） をトリガーに、Lambda 関数が JSON メッセージを受け取る**
+2. **Lambda 関数**がそれをバリデーションし、整形する
+3. バリデーション済みのデータを CSV 形式に変換
+4. 生成された CSV ファイルを **S3 バケット** に保存
+
+
+## 🧰 使用技術とツール
+
+| 項目         | 内容                                 |
+| ---------- | ---------------------------------- |
+| 言語         | Python 3.13（Poetryで依存管理）           |
+| ランタイム      | AWS Lambda（Python）                 |
+| メッセージ受信    | SQS（JSON形式）                        |
+| ストレージ      | S3 バケット（CSV ファイルを保存）               |
+| テストフレームワーク | pytest                             |
+| CI/CD      | GitHub Actions（自動テスト・自動デプロイ）       |
+| 開発環境       | Docker + docker-compose + Makefile |
+
+本書では、これらのツールを連携させて、最小構成で実用的なETL処理パッケージを作っていきます。
+
+
+## 📁 フォルダ構成
+
+このプロジェクトのディレクトリ構成は以下の通りです。
+各ファイル・フォルダの役割もコメントで補足しています。
+
+```txt
+lambda-etl
+├── app/                          # アプリケーション本体（Lambda関数）
+│   ├── core/                     # バリデーション、CSV変換、S3出力などのロジック
+│   └── main.py                   # Lambdaのエントリーポイント（ハンドラー関数）
+├── tests/                        # pytestによる単体テストコード
+│   ├── test_lambda_handler_success.py        # 正常系テスト
+│   ├── test_lambda_handler_error_handling.py # 異常系テスト
+│   └── ...（他のテストファイル）
+├── Dockerfiles/                  # Docker用の設定ファイル格納フォルダ
+│   ├── Dockerfile.dev            # 開発用のDockerfile
+│   └── Dockerfile.test           # テスト用のDockerfile（任意で使用）
+├── buildspecfiles/
+│   └── buildspec.yml             # CodeBuild/CodePipeline用のビルド定義ファイル（補足）
+├── docker-compose.yml            # Dockerサービスをまとめて起動する設定ファイル
+├── .github/
+│   └── workflows/                # GitHub ActionsのCI/CD設定フォルダ
+│       └── main.yml              # 自動テスト・デプロイのワークフロー定義（後で作成）
+├── Makefile                      # lintやテスト実行などのコマンドを簡単に実行する定義ファイル
+├── poetry.lock                   # Poetryによる依存バージョンのロックファイル
+├── pyproject.toml                # Poetryによるプロジェクト設定・依存管理の定義ファイル
+├── pre-build.sh                  # ビルド前に実行されるシェルスクリプト（任意で使用）
+├── scripts/
+│   └── lint_run.sh               # lintを実行するシェルスクリプト
+├── htmlcov/                      # テストカバレッジレポート（pytest-covで自動生成）
+│   └── index.html など           # HTML形式のカバレッジ出力ファイル群
+├── project-structure.txt         # この構成を記述した補足用ファイル（任意）
+```
+
+> 本書では、このフォルダ構成に沿って各ファイルの役割や中身を、今後の章で解説していきます。
+
+## ▶️ 次章の内容
+
+次章では、PoetryとDockerを用いたローカル開発環境の構築に入ります。
+依存パッケージの管理方法、開発用コンテナの立ち上げ方、Makefileによる効率化など、
+**毎回の開発作業を最小限にするための仕組み**を整えていきましょう。
