@@ -1,7 +1,21 @@
-from itertools import zip_longest
+def add_key_value(key, value, dct=None):
+    if dct is None:
+        dct = {}
+    dct[key] = value
+    return dct
 
-a = ['x', 'y']
-b = [1, 2, 3]
+print(add_key_value('a', 1))  # {'a': 1}
+print(add_key_value('b', 2))
 
-result = list(zip_longest(a, b, fillvalue='N/A'))
-print(result)  # [('x', 1), ('y', 2), ('N/A', 3)]
+
+def predict_fn(input_data, model):
+    global preprocessor
+    
+    # 入力データを前処理（例：トークン化など）する
+    inputs = preprocessor.tokenize(input_data)
+    
+    # 推論時は勾配計算を無効化
+    with torch.no_grad():
+        outputs = model(inputs)
+    
+    return outputs

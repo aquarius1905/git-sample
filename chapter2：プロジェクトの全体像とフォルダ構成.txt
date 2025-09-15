@@ -1,19 +1,20 @@
-## 🧱 本章の概要
+## 本章の概要
 
 本章では、本書で構築する ETL 処理 Lambda の「全体像」と「プロジェクト構成」を整理します。
 まずは、どのような処理を行い、どんな技術スタックで構成されているのかを確認していきましょう。
 
 
-## 🔄 システム全体の流れ
+## システム全体の流れ
 
 本書で構築する ETL 処理は、以下のようなシンプルな流れで構成されています。
 
 ```
 [SQS] → メッセージ受信（JSON）
+例: {"user_id": 123, "action": "purchase", "amount": 1500}
 ↓
 [Lambda] → バリデーション → CSV変換
 ↓
-[S3] → ファイル保存
+[S3] → ファイル保存（users_2025-08-28.csv）
 ```
 
 1. **SQS（Simple Queue Service） をトリガーに、Lambda 関数が JSON メッセージを受け取る**
@@ -22,22 +23,23 @@
 4. 生成された CSV ファイルを **S3 バケット** に保存
 
 
-## 🧰 使用技術とツール
+## 使用技術とツール
 
 | 項目         | 内容                                 |
 | ---------- | ---------------------------------- |
-| 言語         | Python 3.13（Poetryで依存管理）           |
-| ランタイム      | AWS Lambda（Python）                 |
-| メッセージ受信    | SQS（JSON形式）                        |
-| ストレージ      | S3 バケット（CSV ファイルを保存）               |
-| テストフレームワーク | pytest                             |
-| CI/CD      | GitHub Actions（自動テスト・自動デプロイ）       |
-| 開発環境       | Docker + docker-compose + Makefile |
+| 言語         | Python 3.13（Poetryで依存管理）|
+| ランタイム      | AWS Lambda（Python）|
+| メッセージ受信    | SQS（JSON形式）|
+| ストレージ      | S3 バケット（CSV ファイルを保存）|
+| インフラ管理     | AWS CDK（Infrastructure as Code）|
+| テストフレームワーク | pytest + pytest-cov|
+| CI/CD      | GitHub Actions（自動テスト・自動デプロイ）|
+| 開発環境       | Docker + docker compose + Makefile |
 
 本書では、これらのツールを連携させて、最小構成で実用的なETL処理パッケージを作っていきます。
 
 
-## 📁 フォルダ構成
+## ディレクトリ構成
 
 このプロジェクトのディレクトリ構成は以下の通りです。
 各ファイル・フォルダの役割もコメントで補足しています。
@@ -45,35 +47,46 @@
 ```txt
 lambda-etl
 ├── app/                          # アプリケーション本体（Lambda関数）
+│   ├── __init__.py               # パッケージ初期化ファイル
 │   ├── core/                     # バリデーション、CSV変換、S3出力などのロジック
+│   │   ├── __init__.py           # パッケージ初期化ファイル
+│   │   ├── config.py             # 設定管理
+│   │   ├── schema.py             # JSONスキーマ定義
+│   │   ├── csv_writer.py         # CSV変換処理
+│   │   └── s3_uploader.py        # S3アップロード処理
 │   └── main.py                   # Lambdaのエントリーポイント（ハンドラー関数）
 ├── tests/                        # pytestによる単体テストコード
-│   ├── test_lambda_handler_success.py        # 正常系テスト
-│   ├── test_lambda_handler_error_handling.py # 異常系テスト
-│   └── ...（他のテストファイル）
+│   ├── conftest.py               # pytest設定・共通フィクスチャ
+│   ├── test_main.py              # Lambda関数のテスト
+│   └── test_core.py              # core/内のロジックテスト
+├── cdk/                          # AWS CDK設定ファイル
+│   ├── app.py                    # CDKアプリケーションのエントリーポイント
+│   ├── stacks/                   # スタック定義ファイル群
+│   │   └── lambda_etl_stack.py   # Lambda、SQS、S3のリソース定義
+│   ├── cdk.json                  # CDK設定ファイル
+│   └── requirements.txt          # CDK用Python依存関係
 ├── Dockerfiles/                  # Docker用の設定ファイル格納フォルダ
-│   ├── Dockerfile.dev            # 開発用のDockerfile
-│   └── Dockerfile.test           # テスト用のDockerfile（任意で使用）
-├── buildspecfiles/
-│   └── buildspec.yml             # CodeBuild/CodePipeline用のビルド定義ファイル（補足）
+│   └── Dockerfile.dev            # 開発用のDockerfile
 ├── docker-compose.yml            # Dockerサービスをまとめて起動する設定ファイル
 ├── .github/
 │   └── workflows/                # GitHub ActionsのCI/CD設定フォルダ
-│       └── main.yml              # 自動テスト・デプロイのワークフロー定義（後で作成）
-├── Makefile                      # lintやテスト実行などのコマンドを簡単に実行する定義ファイル
-├── poetry.lock                   # Poetryによる依存バージョンのロックファイル
-├── pyproject.toml                # Poetryによるプロジェクト設定・依存管理の定義ファイル
-├── pre-build.sh                  # ビルド前に実行されるシェルスクリプト（任意で使用）
+│       └── main.yml              # 自動テスト・デプロイのワークフロー定義
 ├── scripts/
 │   └── lint_run.sh               # lintを実行するシェルスクリプト
-├── htmlcov/                      # テストカバレッジレポート（pytest-covで自動生成）
-│   └── index.html など           # HTML形式のカバレッジ出力ファイル群
-├── project-structure.txt         # この構成を記述した補足用ファイル（任意）
+├── .gitignore                    # Git管理対象から除外する設定ファイル
+├── .env.example                  # 環境変数のサンプルファイル
+├── Makefile                      # lintやテスト実行などのコマンドを簡単に実行
+├── poetry.lock                   # Poetryによる依存バージョンのロックファイル
+├── pyproject.toml                # Poetryによるプロジェクト設定・依存管理の定義ファイル
+├── README.md                     # プロジェクト概要・セットアップ手順
+└── htmlcov/                      # テストカバレッジレポート（pytest-covで自動生成）
+    └── index.html など           # HTML形式のカバレッジ出力ファイル群
 ```
 
-> 本書では、このフォルダ構成に沿って各ファイルの役割や中身を、今後の章で解説していきます。
+本書では、このフォルダ構成に沿って各ファイルの役割や中身を、今後の章で解説していきます。
 
-## ▶️ 次章の内容
+
+## 次章の内容
 
 次章では、PoetryとDockerを用いたローカル開発環境の構築に入ります。
 依存パッケージの管理方法、開発用コンテナの立ち上げ方、Makefileによる効率化など、

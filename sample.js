@@ -1,4 +1,9 @@
-console.log(typeof 'hello'); // "string"
-console.log(typeof 42);      // "number"
-console.log(typeof true);    // "boolean"
-console.log(typeof undefined); // "undefined"
+console.log(parseInt('123'));
+console.log(parseInt('123px'));
+console.log(parseInt('12.34'));
+console.log(parseInt('abc'));
+console.log(parseInt(''));
+console.log(parseInt(null));
+console.log(parseInt(undefined));
+console.log(parseInt(true));
+console.log(parseInt(false));

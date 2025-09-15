@@ -1,0 +1,430 @@
+## はじめに
+
+これまでにLambda関数をローカル環境で開発・テストできるように整えてきました。
+本章では、**AWS CDK（Cloud Development Kit）** を使って、実際のAWS環境に必要なリソースを定義・デプロイします。
+
+AWS CDKを使うことで、Lambda関数、SQS、S3バケットなどのインフラを**コードで管理**し、
+環境の一貫性を保ちながら、バージョン管理やレビューが可能になります。
+
+
+## CDKを使う理由
+
+従来のAWSリソース管理では以下のような問題がありました：
+
+* **GUIでの手動作成**：再現性が低く、設定ミスが発生しやすい
+* **CloudFormationのYAML/JSON**：記述が冗長で、管理が煩雑
+* **環境間の差異**：開発・本番環境で微妙に異なる設定になりがち
+
+**AWS CDK**では、これらの問題を以下のように解決します：
+
+* **プログラムコードでインフラ定義**：Pythonで記述でき、再利用性が高い
+* **型安全性**：IDEの補完機能やエラーチェックが利用可能
+* **高水準の抽象化**：ベストプラクティスが組み込まれたコンストラクト
+* **CloudFormationへの自動変換**：内部的にCloudFormationテンプレートを生成
+
+
+## ディレクトリ構成
+
+Chapter2で定義した構成に従って、CDK関連のファイルを配置します：
+
+```txt
+lambda-etl/
+├── app/                          # アプリケーション本体（前章まで実装済み）
+├── tests/                        # テストコード（前章まで実装済み）
+├── cdk/                          # AWS CDK設定ファイル
+│   ├── app.py                    # CDKアプリケーションのエントリーポイント
+│   ├── stacks/                   # スタック定義ファイル群
+│   │   ├── __init__.py           # パッケージ初期化ファイル
+│   │   └── lambda_etl_stack.py   # Lambda、SQS、S3のリソース定義
+│   ├── cdk.json                  # CDK設定ファイル
+│   └── requirements.txt          # CDK用Python依存関係
+├── Dockerfiles/                  # Docker設定（既存）
+├── docker-compose.yml            # Docker compose設定（既存）
+└── ... その他のファイル
+```
+
+## ステップ1：CDK環境のセットアップ
+
+### CDK CLI のインストール
+
+まず、AWS CDK CLIをインストールします。
+
+```bash
+# Node.jsが必要（CDK CLIはNode.js製）
+npm install -g aws-cdk
+
+# インストール確認
+cdk --version
+```
+
+### AWSクレデンシャルの設定
+
+```bash
+# AWS CLIの設定（初回のみ）
+aws configure
+
+# 設定確認
+aws sts get-caller-identity
+```
+
+### CDK依存関係の定義
+
+#### 📄 lambda-etl/cdk/requirements.txt
+
+```txt
+aws-cdk-lib==2.110.0
+constructs>=10.0.0,<11.0.0
+```
+
+### CDK設定ファイル
+
+#### 📄 lambda-etl/cdk/cdk.json
+
+```json
+{
+  "app": "python app.py",
+  "watch": {
+    "include": [
+      "**"
+    ],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "**/__pycache__",
+      "**/.venv"
+    ]
+  },
+  "context": {
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:target-partitions": [
+      "aws",
+      "aws-cn"
+    ],
+    "@aws-cdk/aws-ec2:uniqueImdsv2TemplateName": true,
+    "@aws-cdk/aws-ecs:arnFormatIncludesClusterName": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
+    "@aws-cdk/aws-codepipeline:crossAccountKeyAliasStackSafeResourceName": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true
+  }
+}
+```
+
+## ステップ2：スタック定義の実装
+
+### CDKアプリケーションのエントリーポイント
+
+#### 📄 lambda-etl/cdk/app.py
+
+```python
+#!/usr/bin/env python3
+import aws_cdk as cdk
+from stacks.lambda_etl_stack import LambdaEtlStack
+
+app = cdk.App()
+
+# 環境の設定
+env = cdk.Environment(
+    account=app.node.try_get_context("account"),
+    region=app.node.try_get_context("region") or "ap-northeast-1"
+)
+
+# スタックの作成
+LambdaEtlStack(
+    app, 
+    "LambdaEtlStack",
+    env=env,
+    description="ETL処理用のLambda、SQS、S3リソース"
+)
+
+app.synth()
+```
+
+### パッケージ初期化ファイル
+
+#### 📄 lambda-etl/cdk/stacks/__init__.py
+
+```python
+# 空のファイル（パッケージ認識用）
+```
+
+### メインスタックの実装
+
+#### 📄 lambda-etl/cdk/stacks/lambda_etl_stack.py
+
+```python
+from aws_cdk import (
+    Duration,
+    Stack,
+    aws_lambda as _lambda,
+    aws_sqs as sqs,
+    aws_s3 as s3,
+    aws_lambda_event_sources as lambda_event_sources,
+    aws_iam as iam,
+    RemovalPolicy,
+    CfnOutput,
+)
+from constructs import Construct
+import os
+
+
+class LambdaEtlStack(Stack):
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+
+        # S3バケットの作成
+        etl_bucket = s3.Bucket(
+            self,
+            "EtlBucket",
+            bucket_name=f"lambda-etl-bucket-{self.account}-{self.region}",
+            removal_policy=RemovalPolicy.DESTROY,  # 開発環境用（本番では要注意）
+            auto_delete_objects=True,  # 開発環境用（本番では要注意）
+            versioned=False,
+            public_read_access=False,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+        )
+
+        # SQSキューの作成
+        etl_queue = sqs.Queue(
+            self,
+            "EtlQueue",
+            queue_name="lambda-etl-queue",
+            visibility_timeout=Duration.minutes(5),  # Lambdaのタイムアウトより長く設定
+            retention_period=Duration.days(14),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                max_receive_count=3,
+                queue=sqs.Queue(
+                    self,
+                    "EtlDlq",
+                    queue_name="lambda-etl-dlq",
+                )
+            )
+        )
+
+        # Lambda関数の作成
+        etl_function = _lambda.Function(
+            self,
+            "EtlFunction",
+            function_name="lambda-etl-processor",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="main.lambda_handler",
+            code=_lambda.Code.from_asset(
+                path="../app",
+                exclude=["tests", "__pycache__", "*.pyc"]
+            ),
+            timeout=Duration.minutes(3),
+            memory_size=256,
+            environment={
+                "S3_BUCKET_NAME": etl_bucket.bucket_name,
+                "KEY_PREFIX": "etl-output",
+                "PYTHONPATH": "/var/runtime:/var/task",
+            },
+            retry_attempts=0,  # SQSで再試行を管理
+        )
+
+        # Lambda関数にS3への書き込み権限を付与
+        etl_bucket.grant_write(etl_function)
+
+        # Lambda関数にSQSからのメッセージ読み取り権限を付与
+        etl_queue.grant_consume_messages(etl_function)
+
+        # SQSをLambdaのイベントソースとして設定
+        etl_function.add_event_source(
+            lambda_event_sources.SqsEventSource(
+                etl_queue,
+                batch_size=1,  # 一度に1メッセージずつ処理
+                max_batching_window=Duration.seconds(5),
+                report_batch_item_failures=True,
+            )
+        )
+
+        # 出力：他のスタックや手動テストで使用するため
+        CfnOutput(
+            self,
+            "BucketName",
+            value=etl_bucket.bucket_name,
+            description="S3バケット名"
+        )
+
+        CfnOutput(
+            self,
+            "QueueUrl",
+            value=etl_queue.queue_url,
+            description="SQSキューURL"
+        )
+
+        CfnOutput(
+            self,
+            "QueueName",
+            value=etl_queue.queue_name,
+            description="SQSキュー名"
+        )
+
+        CfnOutput(
+            self,
+            "FunctionName",
+            value=etl_function.function_name,
+            description="Lambda関数名"
+        )
+```
+
+## ステップ3：CDK環境の初期化とデプロイ
+
+### CDK環境の作成
+
+```bash
+# CDKディレクトリに移動
+cd cdk
+
+# Python仮想環境の作成
+python -m venv .venv
+
+# 仮想環境の有効化（macOS/Linux）
+source .venv/bin/activate
+
+# 仮想環境の有効化（Windows）
+# .venv\Scripts\activate
+
+# 依存関係のインストール
+pip install -r requirements.txt
+```
+
+### CDKブートストラップ（初回のみ）
+
+```bash
+# AWSアカウントでCDKを初回利用する場合のみ実行
+cdk bootstrap
+```
+
+### スタックの確認とデプロイ
+
+```bash
+# CloudFormationテンプレートの生成・確認
+cdk synth
+
+# 差分の確認
+cdk diff
+
+# デプロイの実行
+cdk deploy
+```
+
+**期待される出力例：**
+
+```bash
+✅  LambdaEtlStack
+
+✨  Deployment time: 45.67s
+
+Outputs:
+LambdaEtlStack.BucketName = lambda-etl-bucket-123456789012-ap-northeast-1
+LambdaEtlStack.QueueUrl = https://sqs.ap-northeast-1.amazonaws.com/123456789012/lambda-etl-queue
+LambdaEtlStack.QueueName = lambda-etl-queue
+LambdaEtlStack.FunctionName = lambda-etl-processor
+
+Stack ARN:
+arn:aws:cloudformation:ap-northeast-1:123456789012:stack/LambdaEtlStack/...
+```
+
+## ステップ4：デプロイされたリソースの確認
+
+### AWS CLIでの確認
+
+```bash
+# S3バケットの確認
+aws s3 ls | grep lambda-etl
+
+# SQSキューの確認
+aws sqs list-queues | grep lambda-etl
+
+# Lambda関数の確認
+aws lambda list-functions | grep lambda-etl
+```
+
+### AWSコンソールでの確認
+
+1. **S3コンソール**: 作成されたバケットを確認
+2. **SQSコンソール**: キューとDLQが作成されているか確認
+3. **Lambdaコンソール**: 関数が正常にデプロイされているか確認
+
+## トラブルシューティング
+
+### よくあるエラーと対処法
+
+#### 1. 権限エラー
+
+```bash
+# エラー例
+AccessDenied: User is not authorized to perform: sts:AssumeRole
+
+# 対処法：IAMユーザーに適切な権限を付与
+# 最低限必要な権限：
+# - CloudFormationFullAccess
+# - IAMFullAccess
+# - S3FullAccess
+# - SQSFullAccess
+# - LambdaFullAccess
+```
+
+#### 2. リソース名の重複
+
+```bash
+# エラー例
+BucketAlreadyExists: The requested bucket name is not available
+
+# 対処法：バケット名にランダムな文字列を追加
+# lambda_etl_stack.py内のbucket_nameを変更
+```
+
+#### 3. Python依存関係のエラー
+
+```bash
+# エラー例
+ModuleNotFoundError: No module named 'pydantic'
+
+# 対処法：Lambda Layerを使用するか、依存関係をパッケージに含める
+# 簡易的な解決策として、requirements.txtをappディレクトリに配置
+```
+
+## リソースの削除
+
+開発環境のリソースを削除する場合：
+
+```bash
+# スタック全体の削除
+cdk destroy
+
+# 確認プロンプトで 'y' を入力
+```
+
+**注意**: S3バケットにファイルが残っている場合、削除に失敗することがあります。
+事前にバケットを空にしてから削除してください。
+
+## まとめ
+
+本章では、AWS CDKを使って以下のリソースを定義・デプロイしました：
+
+| リソース | 目的 | 主要な設定 |
+|---------|------|-----------|
+| **S3バケット** | CSV ファイルの保存先 | 自動削除設定、パブリックアクセス禁止 |
+| **SQSキュー** | JSON メッセージの受信 | DLQ設定、可視性タイムアウト |
+| **Lambda関数** | ETL処理の実行 | SQSトリガー、S3書き込み権限 |
+
+
+## 補足：本番環境での考慮事項
+
+本章では開発・学習目的の設定を使用していますが、本番環境では以下の点を検討してください：
+
+* **S3バケット**: `RemovalPolicy.RETAIN`に変更
+* **暗号化**: S3とSQSでKMS暗号化を有効化
+* **監視**: CloudWatchアラームの設定
+* **ネットワーク**: VPC内でのプライベート通信
+* **権限**: 最小権限の原則に基づいたIAMロール設計
+
+
+## 次章の内容
+
+実際にSQSにメッセージを送信し、Lambda関数が動作してS3にCSVファイルが作成されることを確認します。
+また、CloudWatchでのログ監視や基本的なトラブルシューティング方法も解説します。

@@ -1,4 +1,4 @@
-## 🛠 はじめに
+## はじめに
 
 本章では、**Lambda 関数をローカルで開発・テストするための環境**を整えます。
 Poetry を使って Python の依存パッケージを管理し、
@@ -9,9 +9,26 @@ AWS Lambda は通常クラウド上で実行されるため、**手元での検�
 **安全かつ効率的に開発・テストできる仕組み**を作ります。
 
 
-## 📦 Poetry で Python の依存を管理する
+## ディレクトリ構成
 
-まずは、Python の依存パッケージ管理に Poetry を使用します。
+Poetry + Docker で開発環境は以下のような構成です。
+
+```txt
+lambda-etl
+├── Dockerfiles/
+│   └── Dockerfile.dev
+├── docker-compose.yml
+├── Makefile
+├── .gitignore
+├── .env.example
+├── pyproject.toml
+├── poetry.lock
+```
+
+
+## Poetry で Python の依存を管理する
+
+Python の依存パッケージ管理に Poetry を使用します。
 
 ### Poetry を使う理由
 
@@ -20,7 +37,13 @@ AWS Lambda は通常クラウド上で実行されるため、**手元での検�
 * 仮想環境も含めて統一的に扱える
 * `poetry.lock` によりバージョンが固定され、再現性が高い
 
-### 📄 lambda-etl/pyproject.toml
+### Poetry環境のセットアップ手順
+
+#### Step 1: pyproject.tomlを作成
+
+まず、プロジェクトの依存関係を定義します。
+
+#### 📄 lambda-etl/pyproject.toml
 
 ```toml
 [tool.poetry]
@@ -30,7 +53,7 @@ description = "ETL processor with AWS Lambda"
 authors = ["you@example.com"]
 
 [tool.poetry.dependencies]
-python = "^3.13"
+python = "^3.12"
 boto3 = "^1.34.0"
 pydantic = "^2.10.3"
 pydantic-settings = "^2.6.1"
@@ -38,11 +61,24 @@ pydantic-settings = "^2.6.1"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"
 pytest-cov = "^6.1.1"
+flake8 = "^7.1.1"
+black = "^24.8.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 ```
+
+#### Step 2: ローカルでpoetry.lockを生成
+
+```bash
+poetry install --no-root
+```
+
+この操作により、
+* 依存関係が解決され、`poetry.lock`が生成される
+* 後のDockerビルドで同じバージョンが使用される
+* チーム開発での依存関係の一貫性が保たれる
 
 > `boto3`：AWS SDK
 > `pydantic`：JSONバリデーション用
@@ -50,49 +86,43 @@ build-backend = "poetry.core.masonry.api"
 > `pytest-cov`：カバレッジ計測用
 
 
-## ✍️ ローカルで poetry.lock を生成する
+#### トラブルシューティング：意図しないPythonバージョンが選択される場合
 
-初回のセットアップでは、ローカルで `poetry.lock` を事前に作っておくとスムーズです。
+Poetryが自動的に異なるバージョン（例：3.13）を選択した場合：
 
-以下のコマンドで `poetry.lock` を生成できます。
+1. 指定バージョンがインストールされているか確認
+   ```bash
+   which python3.12
+   ```
 
-```bash
-poetry install --no-root
-```
+2. 見つからない場合はインストール
+   ```bash
+   brew install python@3.12
+   ```
 
-これにより、**依存関係がロックされて Docker ビルド時の再現性が高まります。**
+3. Poetryで明示的に指定
+   ```bash
+   poetry env use python3.12
+   poetry install --no-root
+   ```
 
-
-## 🔄 poetry.lock を手動で再生成したい場合
-
-依存バージョンを更新したい場合や、ロックファイルをリセットしたいときは以下の手順で行えます：
-
-```bash
-rm poetry.lock
-poetry install --no-root
-```
-
-この操作によって、`pyproject.toml` に従った最新の依存関係が再解決され、`poetry.lock` が再生成されます。
-
-
-## 🐳 Docker でローカル環境を構築する
+## Docker でローカル環境を構築する
 
 Poetry 環境を Lambda 実行環境に近づけるため、Docker を使って隔離された開発コンテナを構築します。
 
-### 📄 lambda-etl/Dockerfiles/Dockerfile.dev
+#### 📄 lambda-etl/Dockerfiles/Dockerfile.dev
 
 ```dockerfile
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 # 作業ディレクトリを作成
 WORKDIR /app
 
-# 依存関係のインストール
-COPY pyproject.toml ./
+# Poetry設定とpoetry.lockをコピー
+COPY pyproject.toml poetry.lock ./
 
 RUN pip install --upgrade pip \
  && pip install poetry \
- && poetry lock \
  && poetry install --no-root
 
 # アプリケーションのコードをコピー
@@ -105,12 +135,50 @@ CMD ["/bin/bash"]
 > `--no-root` により、ライブラリとしての自身を除いてインストールする。
 
 
-## ⚙️ docker-compose.yml で起動設定をまとめる
+## 環境変数の設定
+
+LocalStackやAWS接続用の環境変数を管理するため、設定ファイルを用意します。
+
+#### 📄 lambda-etl/.env.example
+
+```bash
+# LocalStack用AWS設定
+AWS_ENDPOINT_URL=http://localstack:4566
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
+AWS_DEFAULT_REGION=ap-northeast-1
+
+# S3バケット名
+S3_BUCKET_NAME=lambda-etl-bucket
+```
+
+実際の開発では、`.env.example`をコピーして`.env`を作成し、必要に応じて値を調整します。
+
+```bash
+cp .env.example .env
+```
+
+> `.env`ファイルには実際の認証情報が含まれる可能性があるため、`.gitignore`で除外されています。
+
+
+## LocalStack でAWSサービスをローカル再現
+
+AWS Lambda開発では、S3やSQSなどのAWSサービスとの連携テストが必要です。
+しかし、開発のたびに実際のAWSリソースを作成すると以下のような問題が出てきます。
+* コストがかかる
+* 削除し忘れのリスクがある
+* テスト環境の準備に時間がかかる
+
+**LocalStack**は、これらのAWSサービスをローカルで完全に模擬できるツールです。
+Docker上でS3バケットやSQSキューを作成し、本番と同じAPIで操作できます。
+
+
+## docker-compose.yml で起動設定をまとめる
 
 複雑な `docker run` を毎回打たなくてもよいように、
-`docker-compose` を使って起動を簡素化します。
+`docker compose` を使って起動を簡素化します。
 
-### 📄 lambda-etl/docker-compose.yml
+#### 📄 lambda-etl/docker-compose.yml
 
 ```yaml
 services:
@@ -124,13 +192,15 @@ services:
     command: tail -f /dev/null
     depends_on:
       - localstack
+    env_file:
+      - .env
     environment:
       - PYTHONPATH=/app
 
   localstack:
     image: localstack/localstack:3.3
     environment:
-      - SERVICES=s3
+      - SERVICES=s3,sqs
     ports:
       - "4566:4566"
 ```
@@ -138,27 +208,27 @@ services:
 > `volumes` により、ローカルでコードを変更すると即座にコンテナに反映されるため、再ビルド不要で開発できます。
 
 
-## 🧰 Makefile で操作を簡略化する
+## Makefile で操作を簡略化する
 
 Poetry や Docker のコマンドは長くなりがちなので、開発効率のために Makefile にショートカットを定義しておきます。
 ここでは、よく使う操作をまとめて簡単に実行できるようにしています。
 
-### 📄 lambda-etl/Makefile
+#### 📄 lambda-etl/Makefile
 
 ```makefile
 .PHONY: up test lint format help
 
 up:
-	docker-compose up --build
+	docker compose up --build
 
 test:
-	poetry run pytest --cov=app tests/
+	docker compose run --rm app poetry run pytest --cov=app tests/
 
 lint:
-	poetry run flake8 app tests
+	docker compose run --rm app poetry run flake8 app tests
 
 format:
-	poetry run black app tests
+	docker compose run --rm app poetry run black app tests
 
 help:
 	@echo "make up      # Dockerで開発環境を起動"
@@ -171,7 +241,7 @@ help:
 > `make help` を実行すると、定義されたコマンドの一覧が表示されます。
 
 
-### 📝 補足：`.PHONY` とは？
+### 補足：`.PHONY` とは？
 
 Makefile では、ターゲット名が実際のファイル名と重なると、コマンドがスキップされてしまうことがあります。
 `.PHONY` により「これはファイル名ではなく、**必ず実行すべきコマンド**である」と明示できます。
@@ -185,25 +255,100 @@ Makefile では、ターゲット名が実際のファイル名と重なると�
 こうしておくことで、たとえば `test` という名前のファイルが存在していても、
 `make test` は必ず実行されるようになります。
 
+## .gitignore を設定する
 
-## ✅ ファイル構成のまとめ
+プロジェクトでは、不要なキャッシュや自動生成ファイルを Git 管理から除外するために  
+`.gitignore` ファイルを用意しておきます。  
 
-本章で追加・編集したファイルは以下の通りです。
+#### 📄 lambda-etl/.gitignore
 
-```txt
-lambda-etl
-├── Dockerfiles/
-│   └── Dockerfile.dev
-├── docker-compose.yml
-├── Makefile
-├── pyproject.toml
-├── poetry.lock
+```gitignore
+# Pythonキャッシュ
+__pycache__/
+*.pyc
+
+# pytestキャッシュ
+.pytest_cache/
+
+# coverageレポート
+htmlcov/
+.coverage
+
+# 仮想環境（必要に応じて）
+.venv/
+
+# 環境変数ファイル
+.env
+
+# Dockerログ
+*.log
 ```
 
-これらを揃えることで、**ローカルで開発・テスト可能な Python Lambda 環境**が整います。
+
+## 環境構築の動作確認
+
+セットアップ完了後、以下の手順で環境が正しく構築されているか確認しましょう。
+
+#### Step 1: コンテナを起動
+
+```bash
+make up
+```
+
+#### Step 2: コンテナに接続
+
+新しいターミナルを開き、コンテナに接続します。
+
+```bash
+docker compose exec app bash
+```
+
+#### Step 3: Python環境の確認（コンテナ内で実行）
+
+コンテナに接続した状態で、以下のコマンドを実行します。
+
+```bash
+# Pythonバージョン確認
+poetry run python --version
+
+# 依存パッケージの動作確認
+poetry run python -c "import boto3; print('boto3 imported successfully')"
+poetry run python -c "import pydantic; print('pydantic imported successfully')"
+```
+
+期待する出力例：
+```bash
+Python 3.12.X
+boto3 imported successfully
+pydantic imported successfully
+```
 
 
-## ▶️ 次章の内容
+#### Step 4: LocalStackの確認（ローカルで実行）
+
+新しいターミナルを開き、ローカル環境から以下のコマンドを実行します。
+
+```bash
+# LocalStackのヘルスチェック
+curl http://localhost:4566/_localstack/health
+
+# S3とSQSサービスの確認
+curl http://localhost:4566/_localstack/health | grep -E "(s3|sqs)"
+```
+
+期待する出力例：
+```
+{"services": {"s3": "available", "sqs": "available", ...}}
+    "s3": "available",
+    "sqs": "available",
+```
+
+> エラーが出る場合は、`make up`でコンテナが正常に起動しているか確認してください。
+
+すべて正常に動作すれば、開発環境の構築は完了です。
+
+
+## 次章の内容
 
 次章では、Lambda 関数の実装に入ります。
 **SQS から受信した JSON データをバリデーション → CSV 変換 → S3 保存**するまでの処理を、

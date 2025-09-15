@@ -1,10 +1,10 @@
-## 🧩 はじめに
+## はじめに
 
 本章では、**SQS から受信した JSON データをバリデーション → CSV 変換 → S3 に保存する**という ETL 処理の中核部分を構築します。
 この処理は Lambda 関数内で実装され、本テンプレートの中心的なロジックとなります。
 
 
-## 🏗 処理の全体構成
+## 処理の全体構成
 
 Lambda 関数では、以下のような処理を順番に行います。
 
@@ -16,24 +16,72 @@ Lambda 関数では、以下のような処理を順番に行います。
 本章では、これらを段階的に実装します。
 
 
-## 📁 ディレクトリ構成のおさらい
+## ディレクトリ構成
 
 Lambda 関数のコードは以下のような構成です。
 
 ```txt
 lambda-etl
-├── app/
-│   ├── core/
-│   │   ├── schema.py         # JSONスキーマ定義（pydantic）
-│   │   ├── csv_writer.py     # CSV出力処理
-│   │   └── s3_uploader.py    # S3アップロード処理
-│   └── main.py               # Lambda関数のエントリーポイント
+├── app/                          # アプリケーション本体（Lambda関数）
+│   ├── __init__.py               # パッケージ初期化ファイル
+│   ├── core/                     # バリデーション、CSV変換、S3出力などのロジック
+│   │   ├── __init__.py           # パッケージ初期化ファイル
+│   │   ├── config.py             # 設定管理
+│   │   ├── schema.py             # JSONスキーマ定義
+│   │   ├── csv_writer.py         # CSV変換処理
+│   │   └── s3_uploader.py        # S3アップロード処理
+│   └── main.py                   # Lambdaのエントリーポイント（ハンドラー関数）
 ```
 
+## `__init__.py`ファイルについて
 
-## 🧪 ステップ①：pydantic でスキーマ定義
+各ディレクトリに配置されている`__init__.py`は、そのディレクトリをPythonパッケージとして認識させるためのファイルです。
+内容は空で構いませんが、以下のファイルを作成してください：
 
-まず、受け取る JSON の構造を定義します。
+```bash
+# appディレクトリ作成
+mkdir app
+# app/coreディレクトリ作成
+mkdir app/core
+
+# 空のファイルを作成
+touch app/__init__.py
+touch app/core/__init__.py
+```
+
+これにより、`from app.core.config import settings`のようなインポートが正常に動作します。
+
+
+## ステップ1：設定管理の実装
+
+まず、環境変数やデフォルト値を一元管理するための設定ファイルを作成します。
+
+### 📄 lambda-etl/app/core/config.py
+
+```python
+from typing import Optional
+from pydantic import Field
+from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = ConfigDict(env_prefix="")
+
+    s3_bucket_name: str = Field(default="your-bucket-name", alias="S3_BUCKET_NAME")
+    key_prefix: str = Field(default="etl-output", alias="KEY_PREFIX")
+    aws_endpoint_url: Optional[str] = Field(default=None, alias="AWS_ENDPOINT_URL")
+
+
+settings = Settings()
+```
+
+> この設定により、環境変数で値を上書きでき、開発環境と本番環境での設定切り替えが容易になります。
+
+
+## ステップ2：スキーマバリデーション（pydantic使用）
+
+受け取るJSONの構造を定義し、データの妥当性をチェックできるようにします。
 
 ### 📄 lambda-etl/app/core/schema.py
 
@@ -41,19 +89,40 @@ lambda-etl
 from pydantic import BaseModel, Field
 from typing import List
 
+
 class DataRecord(BaseModel):
-    user_id: int = Field(..., example=123)
-    name: str = Field(..., example="山田太郎")
-    email: str = Field(..., example="taro@example.com")
+    user_id: int = Field(..., description="ユーザーID")
+    name: str = Field(..., description="ユーザー名")
+    email: str = Field(..., description="メールアドレス")
+
 
 class SQSMessageBody(BaseModel):
     records: List[DataRecord]
 ```
 
-> この定義により、Lambda関数で受け取るデータの妥当性をチェックできます。
+**受信するJSONの例：**
+```json
+{
+  "records": [
+    {
+      "user_id": 123,
+      "name": "田中太郎",
+      "email": "taro.tanaka@example.com"
+    },
+    {
+      "user_id": 456,
+      "name": "佐藤花子",
+      "email": "hanako.sato@example.com"
+    }
+  ]
+}
+```
 
+## ステップ3：CSV形式への変換
 
-## 📄 lambda-etl/app/core/csv\_writer.py
+バリデーション済みのデータをCSV形式に変換する処理を実装します。
+
+### 📄 lambda-etl/app/core/csv_writer.py
 
 CSV形式でデータを保存する処理を実装します。
 
@@ -61,6 +130,7 @@ CSV形式でデータを保存する処理を実装します。
 import csv
 from typing import List, Dict
 from io import StringIO
+
 
 def generate_csv(records: List[Dict]) -> str:
     if not records:
@@ -76,92 +146,145 @@ def generate_csv(records: List[Dict]) -> str:
     return output.getvalue()
 ```
 
+## ステップ4：S3バケットへの保存
 
-## 📄 lambda-etl/app/core/s3\_uploader.py
+生成したCSVファイルをS3に保存する処理を実装します。
 
-生成したCSV文字列をS3に保存します。
+### 📄 lambda-etl/app/core/s3_uploader.py
 
 ```python
 import boto3
-from datetime import datetime
+from datetime import datetime, UTC
+from app.core.config import settings
 
-s3 = boto3.client("s3")
+
+def get_s3_client():
+    if settings.aws_endpoint_url:
+        return boto3.client("s3", endpoint_url=settings.aws_endpoint_url)
+    return boto3.client("s3")
+
 
 def upload_to_s3(bucket_name: str, key_prefix: str, csv_content: str) -> str:
-    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    s3 = get_s3_client()
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     object_key = f"{key_prefix}/output_{timestamp}.csv"
 
     s3.put_object(
         Bucket=bucket_name,
         Key=object_key,
         Body=csv_content.encode("utf-8"),
-        ContentType="text/csv"
+        ContentType="text/csv",
     )
 
     return object_key
 ```
 
+## ステップ5：Lambdaハンドラーの実装（全体統合）
 
-## 🚀 ステップ②：Lambda ハンドラーを実装
+上記の各処理を統合し、SQSメッセージを受信してETL処理を実行するハンドラー関数を作成します。
 
 ### 📄 lambda-etl/app/main.py
 
 ```python
 import json
+import logging
+from app.core.config import settings
 from app.core.schema import SQSMessageBody
 from app.core.csv_writer import generate_csv
 from app.core.s3_uploader import upload_to_s3
+from pydantic import ValidationError
+from typing import Dict, Any
 
-BUCKET_NAME = "your-bucket-name"
-KEY_PREFIX = "etl-output"
 
-def lambda_handler(event, context):
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    logger.info(f"処理開始: {len(event.get('Records', []))}件のメッセージを受信")
+
     try:
         # SQSのメッセージを取り出す
+        if "Records" not in event or len(event["Records"]) == 0:
+            raise ValueError("SQSレコードが見つかりません")
+
         message_body = event["Records"][0]["body"]
         parsed_json = json.loads(message_body)
 
         # スキーマバリデーション
         payload = SQSMessageBody(**parsed_json)
-        records = [record.dict() for record in payload.records]
+        records = [record.model_dump() for record in payload.records]
+
+        if not records:
+            raise ValueError("処理対象のレコードが存在しません")
 
         # CSV変換
         csv_data = generate_csv(records)
 
         # S3にアップロード
-        object_key = upload_to_s3(BUCKET_NAME, KEY_PREFIX, csv_data)
+        object_key = upload_to_s3(
+            settings.s3_bucket_name, settings.key_prefix, csv_data
+        )
+
+        logger.info(f"CSV生成完了: {len(records)}件のレコードを処理")
+        logger.info(f"S3アップロード完了: {object_key}")
 
         return {
             "statusCode": 200,
-            "body": json.dumps({
-                "message": "ファイルをアップロードしました",
-                "s3_key": object_key
-            })
+            "body": json.dumps(
+                {
+                    "message": "ファイルをアップロードしました",
+                    "s3_key": object_key,
+                    "processed_records": len(records),
+                }
+            ),
         }
 
+    except json.JSONDecodeError as e:
+        error_msg = f"JSON解析エラー: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": error_msg}),
+        }
+    except ValidationError as e:
+        error_msg = f"バリデーションエラー: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": error_msg}),
+        }
+    except ValueError as e:
+        error_msg = f"データエラー発生: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": error_msg}),
+        }
     except Exception as e:
+        error_msg = f"予期しないエラー: {str(e)}"
+        logger.error(error_msg)
         return {
             "statusCode": 500,
-            "body": json.dumps({
-                "error": str(e)
-            })
+            "body": json.dumps({"error": error_msg}),
         }
 ```
 
 
-## ✅ まとめ
+## まとめ
 
 本章では、以下の構成要素を実装しました。
 
 | ファイル             | 内容                      |
 | ---------------- | ----------------------- |
+| `config.py`      | 設定管理（環境変数・デフォルト値）       |
 | `schema.py`      | 受信データのスキーマ定義（pydantic）  |
 | `csv_writer.py`  | JSON → CSV 変換処理         |
 | `s3_uploader.py` | S3 バケットへのアップロード処理       |
 | `main.py`        | Lambda関数のハンドラーとして各機能を統合 |
 
 
-## ▶️ 次章の内容
+## 次章の内容
 
 > **補足：この章ではまだ Docker は起動しません。**  
 > Lambda 関数のロジックを実装しただけの状態なので、  
