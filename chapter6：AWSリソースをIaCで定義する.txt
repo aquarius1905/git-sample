@@ -29,8 +29,8 @@ Chapter2で定義した構成に従って、CDK関連のファイルを配置し
 
 ```txt
 lambda-etl/
-├── app/                          # アプリケーション本体（前章まで実装済み）
-├── tests/                        # テストコード（前章まで実装済み）
+├── app/                          # アプリケーション本体（実装済み）
+├── tests/                        # テストコード（実装済み）
 ├── cdk/                          # AWS CDK設定ファイル
 │   ├── app.py                    # CDKアプリケーションのエントリーポイント
 │   ├── stacks/                   # スタック定義ファイル群
@@ -281,10 +281,10 @@ cd cdk
 # Python仮想環境の作成
 python -m venv .venv
 
-# 仮想環境の有効化（macOS/Linux）
+# 仮想環境の有効化（macOS/Linuxの場合、こちらを実行）
 source .venv/bin/activate
 
-# 仮想環境の有効化（Windows）
+# 仮想環境の有効化（Windowsの場合、こちらを実行）
 # .venv\Scripts\activate
 
 # 依存関係のインストール
@@ -309,6 +309,9 @@ cdk diff
 
 # デプロイの実行
 cdk deploy
+
+# 以下のような確認プロンプトが表示された場合、yを押下
+Do you wish to deploy these changes (y/n)? 
 ```
 
 **期待される出力例：**
@@ -341,6 +344,23 @@ aws sqs list-queues | grep lambda-etl
 
 # Lambda関数の確認
 aws lambda list-functions | grep lambda-etl
+```
+
+**期待される出力例：**
+```bash
+# aws s3 ls | grep lambda-etl
+2025-09-15 17:30:29 lambda-etl-bucket-390402571563-ap-northeast-1
+
+# aws sqs list-queues | grep lambda-etl
+        "https://sqs.ap-northeast-1.amazonaws.com/390402571563/lambda-etl-dlq",
+        "https://sqs.ap-northeast-1.amazonaws.com/390402571563/lambda-etl-queue"
+
+# aws lambda list-functions | grep lambda-etl
+            "FunctionName": "lambda-etl-processor",
+            "FunctionArn": "arn:aws:lambda:ap-northeast-1:390402571563:function:lambda-etl-processor",
+                    "S3_BUCKET_NAME": "lambda-etl-bucket-390402571563-ap-northeast-1"
+                "LogGroup": "/aws/lambda/lambda-etl-processor"
+            "Description": "Lambda function for auto-deleting objects in lambda-etl-bucket-390402571563-ap-northeast-1 S3 bucket.",
 ```
 
 ### AWSコンソールでの確認

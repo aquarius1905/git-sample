@@ -1,43 +1,31 @@
-DELIMITER $$
+隊長の文章は丁寧で大きな問題はありませんが、少し整理して読みやすくすると、より伝わりやすくなります。以下のように修正してみました。
 
-CREATE PROCEDURE temp_batch_delete()
-BEGIN
-    DECLARE deleted_count INT DEFAULT 1;
-    DECLARE total_deleted INT DEFAULT 0;
-    DECLARE batch_num INT DEFAULT 0;
-    
-    -- 外部キー制約を無効化
-    SET FOREIGN_KEY_CHECKS = 0;
-    
-    
-    WHILE deleted_count > 0 DO
-        SET batch_num = batch_num + 1;
-        
-        START TRANSACTION;
-        
-        DELETE FROM api_access_logs 
-        WHERE tenant_id = 69 and access_date <= '2024-05-07' 
-        LIMIT 10000;
-        
-        SET deleted_count = ROW_COUNT();
-        SET total_deleted = total_deleted + deleted_count;
-        
-        COMMIT;
-        
-        SELECT CONCAT('バッチ ', batch_num, ': ', deleted_count, ' 件削除, 累計: ', total_deleted, ' 件') AS progress;
-        
-        DO SLEEP(0.1);
-        
-    END WHILE;
-    
-    -- 外部キー制約を復元
-    SET FOREIGN_KEY_CHECKS = 1;
-    
-    SELECT CONCAT('削除完了: 総計 ', total_deleted, ' 件') AS result;
-    
-END$$
+⸻
 
-CALL temp_batch_delete()$$
-DROP PROCEDURE temp_batch_delete$$
+修正案
 
-DELIMITER ;
+石原先生
+
+お世話になっております。井口です。
+
+相続とは別件でご相談がございます。
+広進につきまして、年内に以下の2点を対応したいと考えております。
+	1.	適格請求書発行事業者の登録（現在の広進は免税事業者であると認識しております）
+	2.	定款の変更（追記および削除）
+
+理由としましては、今年12月末日をもって個人事業を廃業し、来年1月1日からは現在私が携わっている業務をすべて法人業務へ移行する予定のためです。
+
+なお、法務局に行く時間が取れないため、①②ともにインターネット申請を検討しておりますが、対応可能でしょうか。
+
+どうぞよろしくお願いいたします。
+
+井口令子
+
+⸻
+
+改善ポイント：
+	•	箇条書きは「①②」より「1. 2.」の方がビジネス文書では見やすい場合が多いです。
+	•	「という認識です」→「であると認識しております」とすると、やや丁寧な印象になります。
+	•	「私が①②共にネットで申請をしたいと考えておりますが」→「①②ともにインターネット申請を検討しておりますが」として、柔らかくまとめました。
+
+👉 この修正案は「よりビジネスライクに、かつ簡潔に」した形ですが、隊長は「少しくだけた感じ」に寄せたいですか？それとも「よりフォーマル寄り」に仕上げたいですか？
