@@ -16,8 +16,8 @@ MagicMock を使用することで、AWS サービスに依存せず高速でテ
 lambda-etl/
 ├── tests/                        # pytestによる単体テストコード
 │   ├── conftest.py               # pytest設定・共通フィクスチャ
-│   ├── test_main.py              # Lambda関数のテスト
-│   └── test_core.py              # core/内のロジックテスト
+│   ├── test_core.py              # core/内のロジックテスト
+│   └── test_main.py              # Lambda関数のテスト
 ```
 
 ## ステップ1：Docker コンテナのビルドと起動
@@ -47,8 +47,10 @@ docker compose up -d
 ### 📄 lambda-etl/tests/conftest.py
 
 ```python
-import pytest
 from unittest.mock import patch
+
+import pytest
+
 from app.core.config import Settings
 
 
@@ -68,8 +70,9 @@ def setup_test_env():
 ### 📄 lambda-etl/tests/test_main.py
 
 ```python
-from unittest.mock import patch, MagicMock
 import json
+from unittest.mock import MagicMock, patch
+
 from app.main import lambda_handler
 
 
@@ -214,17 +217,20 @@ class TestLambdaHandler:
         assert response["statusCode"] == 500
         body = json.loads(response["body"])
         assert "予期しないエラー" in body["error"]
+
 ```
 
 
 ### 📄 lambda-etl/tests/test_core.py
 
 ```python
-from app.core.csv_writer import generate_csv
-from app.core.schema import DataRecord, SQSMessageBody
-from app.core.s3_uploader import upload_to_s3
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
+
+from app.core.csv_writer import generate_csv
+from app.core.s3_uploader import upload_to_s3
+from app.core.schema import DataRecord, SQSMessageBody
 
 
 class TestCSVWriter:
@@ -281,6 +287,7 @@ class TestS3Uploader:
         assert result.startswith("test-prefix/output_")
         assert result.endswith(".csv")
         mock_s3.put_object.assert_called_once()
+
 ```
 
 
@@ -289,27 +296,37 @@ class TestS3Uploader:
 以下のコマンドで pytest を実行します。
 
 ```bash
-docker compose run --rm app pytest
-````
-
-Makefileを使っている場合は、以下のコマンドでも実行できます。
-
-```bash
 make test
 ```
 
 **期待される出力例：**
 
 ```bash
-================ test session starts ================
-collected 7 items
+================================================================ test session starts ================================================================
+platform linux -- Python 3.12.11, pytest-8.4.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-6.3.0
+collected 11 items                                                                                                                                  
 
-tests/test_main.py::TestLambdaHandler::test_lambda_handler_success PASSED
-tests/test_main.py::TestLambdaHandler::test_lambda_handler_no_records PASSED
-tests/test_core.py::TestCSVWriter::test_generate_csv_success PASSED
-tests/test_core.py::TestSchema::test_data_record_validation_success PASSED
+tests/test_core.py .....                                                                                                                      [ 45%]
+tests/test_main.py ......                                                                                                                     [100%]
 
-================ 7 passed in 2.34s ================
+================================================================== tests coverage ===================================================================
+_________________________________________________ coverage: platform linux, python 3.12.11-final-0 __________________________________________________
+
+Name                      Stmts   Miss  Cover
+---------------------------------------------
+app/__init__.py               0      0   100%
+app/core/__init__.py          0      0   100%
+app/core/config.py            9      0   100%
+app/core/csv_writer.py       13      0   100%
+app/core/s3_uploader.py      13      1    92%
+app/core/schema.py            8      0   100%
+app/main.py                  42      0   100%
+---------------------------------------------
+TOTAL                        85      1    99%
+================================================================ 11 passed in 0.58s =================================================================
 ```
 
 ## まとめ
@@ -325,6 +342,7 @@ tests/test_core.py::TestSchema::test_data_record_validation_success PASSED
 
 ## 次章の内容
 
-次章では、**AWS CDKを使ったインフラ定義**を行います。
-Lambda、SQS、S3などのAWSリソースをコードで管理し、
-一貫性のあるインフラ構築を実現します。
+次章では、**AWSコンソール**を使って実際のAWS環境に必要なリソースを作成し、
+Lambda関数をデプロイします。
+手動でリソースを作成することで、各サービスの設定項目や関係性を理解しながら、
+インフラを構築できます。

@@ -31,7 +31,6 @@
 | ランタイム      | AWS Lambda（Python）|
 | メッセージ受信    | SQS（JSON形式）|
 | ストレージ      | S3 バケット（CSV ファイルを保存）|
-| インフラ管理     | AWS CDK（Infrastructure as Code）|
 | テストフレームワーク | pytest + pytest-cov|
 | CI/CD      | GitHub Actions（自動テスト・自動デプロイ）|
 | 開発環境       | Docker + docker compose + Makefile |
@@ -59,12 +58,6 @@ lambda-etl
 │   ├── conftest.py               # pytest設定・共通フィクスチャ
 │   ├── test_main.py              # Lambda関数のテスト
 │   └── test_core.py              # core/内のロジックテスト
-├── cdk/                          # AWS CDK設定ファイル
-│   ├── app.py                    # CDKアプリケーションのエントリーポイント
-│   ├── stacks/                   # スタック定義ファイル群
-│   │   └── lambda_etl_stack.py   # Lambda、SQS、S3のリソース定義
-│   ├── cdk.json                  # CDK設定ファイル
-│   └── requirements.txt          # CDK用Python依存関係
 ├── Dockerfiles/                  # Docker用の設定ファイル格納フォルダ
 │   └── Dockerfile.dev            # 開発用のDockerfile
 ├── docker-compose.yml            # Dockerサービスをまとめて起動する設定ファイル
@@ -72,15 +65,13 @@ lambda-etl
 │   └── workflows/                # GitHub ActionsのCI/CD設定フォルダ
 │       └── main.yml              # 自動テスト・デプロイのワークフロー定義
 ├── scripts/
-│   └── lint_run.sh               # lintを実行するシェルスクリプト
+│   └── run_lint.sh               # lintを実行するシェルスクリプト
 ├── .gitignore                    # Git管理対象から除外する設定ファイル
 ├── .env.example                  # 環境変数のサンプルファイル
 ├── Makefile                      # lintやテスト実行などのコマンドを簡単に実行
 ├── poetry.lock                   # Poetryによる依存バージョンのロックファイル
 ├── pyproject.toml                # Poetryによるプロジェクト設定・依存管理の定義ファイル
-├── README.md                     # プロジェクト概要・セットアップ手順
-└── htmlcov/                      # テストカバレッジレポート（pytest-covで自動生成）
-    └── index.html など           # HTML形式のカバレッジ出力ファイル群
+└── README.md                     # プロジェクト概要・セットアップ手順
 ```
 
 本書では、このフォルダ構成に沿って各ファイルの役割や中身を、今後の章で解説していきます。

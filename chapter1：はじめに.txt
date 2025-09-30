@@ -88,8 +88,8 @@ AWS Lambdaを使ったデータ処理では、以下のような課題に直面�
 
 * プロジェクトの全体像とフォルダ構成（Chapter2）
 * Poetry + Dockerでの開発環境構築（Chapter3）
-* SQS → Lambda → S3のETL処理実装（Chapter4-5）  
-* AWS CDKでのインフラ構築（Chapter6）
+* SQS → Lambda → S3のETL処理実装（Chapter4-5）
+* AWSリソースを手動で作成する（Chapter6）
 * CI/CDパイプラインによる自動デプロイ（Chapter7）
 
 全て動作するサンプルコード付きで、読了後すぐに実務で活用できます。

@@ -1,116 +1,106 @@
-Chapter5を確認しました。テスト実装の内容は実践的で良いのですが、**いくつか修正が必要な点**があります。
+隊長、下書きかなりわかりやすくまとまってますよ 👍
+添削ポイントを挙げると以下です👇
 
-## 修正が必要な点
+---
 
-### 1. **test_core.pyファイルが未実装**
+## 良い点
 
-ディレクトリ構成で`test_core.py`を示しているのに、実装がありません。以下を追加すべきです：
+* **アイキャッチ・トピック・カテゴリー** → 問題なし。初心者向けの想定として適切。
+* **説明の正確性** → コマンドやオプション説明も間違ってない。
+* **言葉遣い** → 丁寧でわかりやすい。
 
-```python
-# lambda-etl/tests/test_core.py
-from app.core.csv_writer import generate_csv
-from app.core.schema import DataRecord, SQSMessageBody
-import pytest
+---
 
-class TestCSVWriter:
-    def test_generate_csv_success(self):
-        """CSV生成の正常系テスト"""
-        records = [
-            {"user_id": 1, "name": "山田太郎", "email": "taro@example.com"},
-            {"user_id": 2, "name": "佐藤花子", "email": "hanako@example.com"}
-        ]
-        
-        result = generate_csv(records)
-        
-        assert "user_id,name,email" in result
-        assert "山田太郎" in result
-        assert "佐藤花子" in result
+## 改善ポイント
 
-    def test_generate_csv_empty_records(self):
-        """空のレコードでのCSV生成テスト"""
-        with pytest.raises(ValueError, match="CSV出力対象のデータが空です"):
-            generate_csv([])
+1. **「通常は〜」の説明を補足**
+   `docker builder prune` は「未使用キャッシュ」だけを消すので、「直近にビルドで参照されているキャッシュは残る」ことを一文加えると安心。
 
-class TestSchema:
-    def test_data_record_validation_success(self):
-        """DataRecordの正常なバリデーション"""
-        record = DataRecord(
-            user_id=123,
-            name="テストユーザー",
-            email="test@example.com"
-        )
-        
-        assert record.user_id == 123
-        assert record.name == "テストユーザー"
-        assert record.email == "test@example.com"
+2. **実行例の補足**
+   実行後に「容量がどのくらい解放されたか」が表示される点を強調すると、効果が伝わりやすい。
 
-    def test_sqs_message_body_validation_success(self):
-        """SQSMessageBodyの正常なバリデーション"""
-        data = {
-            "records": [
-                {"user_id": 1, "name": "山田太郎", "email": "taro@example.com"}
-            ]
-        }
-        
-        message = SQSMessageBody(**data)
-        
-        assert len(message.records) == 1
-        assert message.records[0].user_id == 1
-```
+3. **初心者向けに注意点をもう一歩だけ**
 
-### 2. **Chapter4で追加したpydantic例外処理との不整合**
+   * `-a` をつけると再ビルドに時間がかかる可能性あり
+   * `system prune` はキャッシュ以外も消えるので取り返しがつかなくなる場合あり
 
-Chapter4で`ValidationError`を追加したのに、テストコードのインポートに含まれていません：
+---
 
-```python
-from pydantic import ValidationError
-```
+## 修正版（完成形）
 
-### 3. **docker-composeコマンドの不統一**
+````markdown
+タイトル：【Docker】docker builder prune でビルドキャッシュを削除する方法
+トピック：docker, 備忘録, 初心者向け, tips
+アイキャッチ：🔖 
+カテゴリー：Tech
 
-Chapter3で`docker compose`に統一したのに、この章では`docker-compose`を使用しています。統一すべきです：
+
+## はじめに
+
+Docker を使って開発を続けていると、イメージの **ビルドキャッシュ** がどんどん溜まってディスク容量を圧迫することがあります。  
+そんなときに役立つのが `docker builder prune` コマンドです。
+
+本記事では、不要なビルドキャッシュを削除する方法を整理します。
+
+
+## `docker builder prune` の基本
+
+`docker builder prune` は、**使われていないビルドキャッシュを削除するコマンド**です。
 
 ```bash
-# 修正前
-docker-compose build
-docker-compose up -d
-docker-compose run --rm app pytest
+docker builder prune
+````
 
-# 修正後
-docker compose build
-docker compose up -d
-docker compose run --rm app pytest
+実行すると確認メッセージが表示され、`y` を入力すると不要なキャッシュがまとめて削除されます。
+
+```bash
+WARNING! This will remove all dangling build cache. Are you sure you want to continue? [y/N] y
+ID                                              RECLAIMABLE     SIZE            LAST ACCESSED
+4nkshf6iuvgh8puk16cgpmyt3                       true            300.8MB         8 days ago
+Total:  300.8MB
 ```
 
-### 4. **テスト実行結果の説明不足**
+→ 最後に **解放された容量の合計** が表示されます。
 
-テストを実行した後、どのような出力が期待されるかの説明がありません。以下を追加：
+## 主なオプション
 
-```markdown
-**期待される出力例：**
-```
-================ test session starts ================
-collected 7 items
+### `-a` / `--all`
 
-tests/test_main.py::TestLambdaHandler::test_lambda_handler_success PASSED
-tests/test_main.py::TestLambdaHandler::test_lambda_handler_no_records PASSED
-tests/test_core.py::TestCSVWriter::test_generate_csv_success PASSED
-tests/test_core.py::TestSchema::test_data_record_validation_success PASSED
+通常は直近のビルドで参照されていないキャッシュのみが削除対象ですが、
+`-a` オプションを付けると、**すべてのビルドキャッシュを削除**します。
 
-================ 7 passed in 2.34s ================
+```bash
+docker builder prune -a
 ```
 
-### 5. **次章の内容が章立てと不一致**
+> ⚠️ 再度ビルドするとキャッシュが効かないため、処理時間が長くなる点に注意してください。
 
-次章の説明で「GitHub Actions による CI 環境構築」と書いていますが、決定した章立てでは次はChapter6「AWSリソースをIaCで定義する」です。
+### `-f` / `--force`
 
-修正すべき箇所：
-```markdown
-## 次章の内容
+確認メッセージを出さずに削除します。
 
-次章では、**AWS CDKを使ったインフラ定義**を行います。
-Lambda、SQS、S3などのAWSリソースをコードで管理し、
-一貫性のあるインフラ構築を実現します。
+```bash
+docker builder prune -af
 ```
 
-これらの修正により、章の完成度と一貫性が向上します。
+## `docker system prune` との違い
+
+* `docker builder prune` → **ビルドキャッシュのみ削除**
+* `docker system prune` → コンテナ・ネットワーク・未使用イメージ・キャッシュなど **幅広く削除**
+
+キャッシュだけ消したい場合は、 `docker builder prune` を使うのが安全です。
+
+## おわりに
+
+`docker builder prune` を使えば、不要なキャッシュをまとめて削除でき、ディスク容量を効率よく節約できます。
+ただし、必要なキャッシュまで消えることがあるため、実行タイミングには注意が必要です。
+
+本記事が参考になれば幸いです。
+
+
+---
+
+この形なら「正確さ・初心者向けのわかりやすさ・過不足なし」の三拍子そろった記事になると思います ✨  
+
+👉 隊長、このまま **Zenn投稿用の完成版** として仕上げちゃいますか？
+```

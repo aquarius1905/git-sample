@@ -1,339 +1,261 @@
 ## はじめに
 
 これまでにLambda関数をローカル環境で開発・テストできるように整えてきました。
-本章では、**AWS CDK（Cloud Development Kit）** を使って、実際のAWS環境に必要なリソースを定義・デプロイします。
+本章では、**AWSコンソール**を使って実際のAWS環境に必要なリソースを作成し、Lambda関数をデプロイします。
 
-AWS CDKを使うことで、Lambda関数、SQS、S3バケットなどのインフラを**コードで管理**し、
-環境の一貫性を保ちながら、バージョン管理やレビューが可能になります。
-
-
-## CDKを使う理由
-
-従来のAWSリソース管理では以下のような問題がありました：
-
-* **GUIでの手動作成**：再現性が低く、設定ミスが発生しやすい
-* **CloudFormationのYAML/JSON**：記述が冗長で、管理が煩雑
-* **環境間の差異**：開発・本番環境で微妙に異なる設定になりがち
-
-**AWS CDK**では、これらの問題を以下のように解決します：
-
-* **プログラムコードでインフラ定義**：Pythonで記述でき、再利用性が高い
-* **型安全性**：IDEの補完機能やエラーチェックが利用可能
-* **高水準の抽象化**：ベストプラクティスが組み込まれたコンストラクト
-* **CloudFormationへの自動変換**：内部的にCloudFormationテンプレートを生成
+手動でリソースを作成することで、各サービスの設定項目や関係性を理解しながら、
+**最短時間で動作する環境**を構築できます。
 
 
-## ディレクトリ構成
+## 作成するリソース
 
-Chapter2で定義した構成に従って、CDK関連のファイルを配置します：
+今回作成するAWSリソースは以下の3つです。
 
-```txt
-lambda-etl/
-├── app/                          # アプリケーション本体（実装済み）
-├── tests/                        # テストコード（実装済み）
-├── cdk/                          # AWS CDK設定ファイル
-│   ├── app.py                    # CDKアプリケーションのエントリーポイント
-│   ├── stacks/                   # スタック定義ファイル群
-│   │   ├── __init__.py           # パッケージ初期化ファイル
-│   │   └── lambda_etl_stack.py   # Lambda、SQS、S3のリソース定義
-│   ├── cdk.json                  # CDK設定ファイル
-│   └── requirements.txt          # CDK用Python依存関係
-├── Dockerfiles/                  # Docker設定（既存）
-├── docker-compose.yml            # Docker compose設定（既存）
-└── ... その他のファイル
-```
-
-## ステップ1：CDK環境のセットアップ
-
-### CDK CLI のインストール
-
-まず、AWS CDK CLIをインストールします。
-
-```bash
-# Node.jsが必要（CDK CLIはNode.js製）
-npm install -g aws-cdk
-
-# インストール確認
-cdk --version
-```
-
-### AWSクレデンシャルの設定
-
-```bash
-# AWS CLIの設定（初回のみ）
-aws configure
-
-# 設定確認
-aws sts get-caller-identity
-```
-
-### CDK依存関係の定義
-
-#### 📄 lambda-etl/cdk/requirements.txt
-
-```txt
-aws-cdk-lib==2.110.0
-constructs>=10.0.0,<11.0.0
-```
-
-### CDK設定ファイル
-
-#### 📄 lambda-etl/cdk/cdk.json
-
-```json
-{
-  "app": "python app.py",
-  "watch": {
-    "include": [
-      "**"
-    ],
-    "exclude": [
-      "README.md",
-      "cdk*.json",
-      "requirements*.txt",
-      "**/__pycache__",
-      "**/.venv"
-    ]
-  },
-  "context": {
-    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
-    "@aws-cdk/core:checkSecretUsage": true,
-    "@aws-cdk/core:target-partitions": [
-      "aws",
-      "aws-cn"
-    ],
-    "@aws-cdk/aws-ec2:uniqueImdsv2TemplateName": true,
-    "@aws-cdk/aws-ecs:arnFormatIncludesClusterName": true,
-    "@aws-cdk/aws-iam:minimizePolicies": true,
-    "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
-    "@aws-cdk/aws-codepipeline:crossAccountKeyAliasStackSafeResourceName": true,
-    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true
-  }
-}
-```
-
-## ステップ2：スタック定義の実装
-
-### CDKアプリケーションのエントリーポイント
-
-#### 📄 lambda-etl/cdk/app.py
-
-```python
-#!/usr/bin/env python3
-import aws_cdk as cdk
-from stacks.lambda_etl_stack import LambdaEtlStack
-
-app = cdk.App()
-
-# 環境の設定
-env = cdk.Environment(
-    account=app.node.try_get_context("account"),
-    region=app.node.try_get_context("region") or "ap-northeast-1"
-)
-
-# スタックの作成
-LambdaEtlStack(
-    app, 
-    "LambdaEtlStack",
-    env=env,
-    description="ETL処理用のLambda、SQS、S3リソース"
-)
-
-app.synth()
-```
-
-### パッケージ初期化ファイル
-
-#### 📄 lambda-etl/cdk/stacks/__init__.py
-
-```python
-# 空のファイル（パッケージ認識用）
-```
-
-### メインスタックの実装
-
-#### 📄 lambda-etl/cdk/stacks/lambda_etl_stack.py
-
-```python
-from aws_cdk import (
-    Duration,
-    Stack,
-    aws_lambda as _lambda,
-    aws_sqs as sqs,
-    aws_s3 as s3,
-    aws_lambda_event_sources as lambda_event_sources,
-    aws_iam as iam,
-    RemovalPolicy,
-    CfnOutput,
-)
-from constructs import Construct
-import os
+| 作成順序 | リソース | 目的 |
+|---------|------|----------|
+| 1 | **S3バケット** | CSVファイルの保存先 |
+| 2 | **SQSキュー** | JSONメッセージの受信 |
+| 3 | **Lambda関数** | ETL処理の実行 |
 
 
-class LambdaEtlStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
-        super().__init__(scope, construct_id, **kwargs)
+## ステップ1：S3バケットの作成
 
-        # S3バケットの作成
-        etl_bucket = s3.Bucket(
-            self,
-            "EtlBucket",
-            bucket_name=f"lambda-etl-bucket-{self.account}-{self.region}",
-            removal_policy=RemovalPolicy.DESTROY,  # 開発環境用（本番では要注意）
-            auto_delete_objects=True,  # 開発環境用（本番では要注意）
-            versioned=False,
-            public_read_access=False,
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
-        )
+### S3コンソールでバケットを作成
 
-        # SQSキューの作成
-        etl_queue = sqs.Queue(
-            self,
-            "EtlQueue",
-            queue_name="lambda-etl-queue",
-            visibility_timeout=Duration.minutes(5),  # Lambdaのタイムアウトより長く設定
-            retention_period=Duration.days(14),
-            dead_letter_queue=sqs.DeadLetterQueue(
-                max_receive_count=3,
-                queue=sqs.Queue(
-                    self,
-                    "EtlDlq",
-                    queue_name="lambda-etl-dlq",
-                )
-            )
-        )
+1. **AWSコンソール**にログインし、**S3**サービスを開く
+2. 「**バケットを作成**」をクリック
 
-        # Lambda関数の作成
-        etl_function = _lambda.Function(
-            self,
-            "EtlFunction",
-            function_name="lambda-etl-processor",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="main.lambda_handler",
-            code=_lambda.Code.from_asset(
-                path="../app",
-                exclude=["tests", "__pycache__", "*.pyc"]
-            ),
-            timeout=Duration.minutes(3),
-            memory_size=256,
-            environment={
-                "S3_BUCKET_NAME": etl_bucket.bucket_name,
-                "KEY_PREFIX": "etl-output",
-                "PYTHONPATH": "/var/runtime:/var/task",
-            },
-            retry_attempts=0,  # SQSで再試行を管理
-        )
+![](https://storage.googleapis.com/zenn-user-upload/d1e0a8396e9e-20250923.jpeg)
 
-        # Lambda関数にS3への書き込み権限を付与
-        etl_bucket.grant_write(etl_function)
+3. 以下の設定を入力する
 
-        # Lambda関数にSQSからのメッセージ読み取り権限を付与
-        etl_queue.grant_consume_messages(etl_function)
+**基本設定**
+- **バケットタイプ**: **汎用**を選択
+- **バケット名**: `lambda-etl-bucket-[あなたの名前]-[日付]`
+  - 例：`lambda-etl-bucket-fd2025-20250924`
+  - バケット名は全世界でユニークである必要があります
+- **AWSリージョン**: `アジアパシフィック（東京）ap-northeast-1`
 
-        # SQSをLambdaのイベントソースとして設定
-        etl_function.add_event_source(
-            lambda_event_sources.SqsEventSource(
-                etl_queue,
-                batch_size=1,  # 一度に1メッセージずつ処理
-                max_batching_window=Duration.seconds(5),
-                report_batch_item_failures=True,
-            )
-        )
+**オブジェクト所有権**
+- **ACL無効（推奨）** を選択
 
-        # 出力：他のスタックや手動テストで使用するため
-        CfnOutput(
-            self,
-            "BucketName",
-            value=etl_bucket.bucket_name,
-            description="S3バケット名"
-        )
+![](https://storage.googleapis.com/zenn-user-upload/ca1334930ce7-20250923.jpg)
 
-        CfnOutput(
-            self,
-            "QueueUrl",
-            value=etl_queue.queue_url,
-            description="SQSキューURL"
-        )
 
-        CfnOutput(
-            self,
-            "QueueName",
-            value=etl_queue.queue_name,
-            description="SQSキュー名"
-        )
+**パブリックアクセス設定**
+- **パブリックアクセスをすべてブロック**にチェック（デフォルト）
 
-        CfnOutput(
-            self,
-            "FunctionName",
-            value=etl_function.function_name,
-            description="Lambda関数名"
-        )
-```
+**バケットのバージョニング**
+- **無効**を選択
 
-## ステップ3：CDK環境の初期化とデプロイ
+![](https://storage.googleapis.com/zenn-user-upload/7836f0cbc407-20250923.jpeg)
 
-### CDK環境の作成
+**デフォルト暗号化**
+- **デフォルト設定**のまま
+
+4. 「**バケットを作成**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/fc417525cae3-20250923.jpeg)
+
+### 作成確認
+
+バケット一覧に作成したバケットが表示されることを確認してください。
+
+![](https://storage.googleapis.com/zenn-user-upload/9451757a148e-20250923.jpeg)
+
+## ステップ2：SQSキューの作成
+
+### 2-1. メインキューの作成
+
+1. **SQS**サービスを開く
+2. 「**キューの作成**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/d98a5aec1dc3-20250925.jpeg)
+
+3. 以下の設定を入力する
+
+**基本設定**
+- **タイプ**: **標準**を選択
+- **名前**: `lambda-etl-queue`
+
+![](https://storage.googleapis.com/zenn-user-upload/535ba83ad5a4-20250925.jpeg)
+
+**設定**
+- **可視性タイムアウト**: `300秒`（5分）
+  - Lambda関数のタイムアウト時間より長く設定
+- **メッセージ保持期間**: `14日`
+- **その他の項目**: デフォルト値
+
+![](https://storage.googleapis.com/zenn-user-upload/c160b7b12794-20250925.jpeg)
+
+**その他の設定**
+- デフォルトのまま
+
+4. 「**キューの作成**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/49fa18ca3f49-20250925.jpeg)
+
+### 2-2. デッドレターキューの作成
+
+1. 再度「**キューの作成**」をクリック
+![](https://storage.googleapis.com/zenn-user-upload/41afcfe074fa-20250925.jpeg)
+
+2. 以下の設定を入力：
+
+**基本設定**
+- **タイプ**: **標準**を選択
+- **名前**: `lambda-etl-dlq`
+
+![](https://storage.googleapis.com/zenn-user-upload/3bc8e75b353a-20250925.jpeg)
+
+**その他の設定**
+- デフォルトのまま
+
+3. 「**キューの作成**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/49fa18ca3f49-20250925.jpeg)
+
+### 2-3. メインキューにデッドレターキューを設定
+
+1. 作成した `lambda-etl-queue` をクリックして詳細画面を開く
+2. 「**編集**」ボタンをクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/a5fa8d6e2a27-20250925.jpeg)
+
+3. **デッドレターキュー**セクションで以下を設定
+
+**デッドレターキュー**
+- **有効**にチェック
+- **最大受信回数**: `3`
+- **キューの選択**: `lambda-etl-dlq` を選択
+
+4. 「**保存**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/351050f41459-20250925.jpeg)
+
+![](https://storage.googleapis.com/zenn-user-upload/30b7b355de51-20250925.jpeg)
+
+### 2-4. 作成確認
+
+キュー一覧に以下の2つのキューが作成され、メインキューにDLQが設定されていることを確認する
+- `lambda-etl-queue`（メインキュー、DLQ設定済み）
+- `lambda-etl-dlq`（デッドレターキュー）
+
+![](https://storage.googleapis.com/zenn-user-upload/670d066f69f3-20250925.jpeg)
+
+![](https://storage.googleapis.com/zenn-user-upload/f6f98e4304f7-20250925.jpeg)
+
+## ステップ3：Lambda関数の作成
+
+### Lambdaコンソールで関数を作成
+
+1. **Lambda**サービスを開く
+2. 「**関数の作成**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/c1aa2300f1c5-20250927.jpg)
+
+3. 「**一から作成**」を選択
+4. 以下の設定を入力する
+
+**基本的な情報**
+- **関数名**: `lambda-etl-processor`
+- **ランタイム**: `Python 3.12`
+- **アーキテクチャ**: `x86_64`
+
+![](https://storage.googleapis.com/zenn-user-upload/ded974624076-20250927.jpg)
+
+
+**実行ロール**
+- **基本的なLambda権限で新しいロールを作成**を選択
+
+5. 「**関数の作成**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/2b5823c136b2-20250929.jpeg)
+
+### 関数コードのデプロイ
+
+#### デプロイパッケージの作成
+
+ローカルで以下のコマンドを実行し、デプロイ用のzipファイルを作成：
 
 ```bash
-# CDKディレクトリに移動
-cd cdk
+# プロジェクトルートディレクトリで実行
+cd lambda-etl
 
-# Python仮想環境の作成
-python -m venv .venv
+# デプロイ用ディレクトリを作成
+mkdir -p deploy-package
+cp -r app/* deploy-package/
+cp main.py deploy-package/
 
-# 仮想環境の有効化（macOS/Linuxの場合、こちらを実行）
-source .venv/bin/activate
-
-# 仮想環境の有効化（Windowsの場合、こちらを実行）
-# .venv\Scripts\activate
-
-# 依存関係のインストール
-pip install -r requirements.txt
+# zipファイルを作成
+cd deploy-package
+zip -r ../lambda-etl-function.zip .
+cd ..
 ```
 
-### CDKブートストラップ（初回のみ）
+#### zipファイルのアップロード
 
-```bash
-# AWSアカウントでCDKを初回利用する場合のみ実行
-cdk bootstrap
-```
+1. Lambda関数の**コード**タブを開く
+2. 「**アップロード元**」→「**.zipファイル**」をクリック
+3. 作成した `lambda-etl-function.zip` を選択してアップロード
+4. 「**保存**」をクリック
 
-### スタックの確認とデプロイ
+#### ハンドラーの設定
 
-```bash
-# CloudFormationテンプレートの生成・確認
-cdk synth
+**設定**タブの**全般設定**で：
+- **ハンドラー**: `main.lambda_handler` に変更
+- **タイムアウト**: `3分`
+- **メモリ**: `256MB`
 
-# 差分の確認
-cdk diff
 
-# デプロイの実行
-cdk deploy
+## ステップ4：IAM権限の設定
 
-# 以下のような確認プロンプトが表示された場合、yを押下
-Do you wish to deploy these changes (y/n)? 
-```
+Lambda関数がS3とSQSにアクセスできるよう権限を追加します。
 
-**期待される出力例：**
+### 実行ロールへのポリシー追加
 
-```bash
-✅  LambdaEtlStack
+1. Lambda関数の**設定**タブ→**権限**を開く
+2. **実行ロール**のリンクをクリック（IAMコンソールが開く）
+3. 「**許可を追加**」→「**ポリシーをアタッチ**」をクリック
+4. 以下のポリシーを検索して追加：
+   - `AmazonS3FullAccess`
+   - `AmazonSQSFullAccess`
 
-✨  Deployment time: 45.67s
+注意：本番環境では最小権限の原則に従い、より制限的なポリシーを使用してください。
 
-Outputs:
-LambdaEtlStack.BucketName = lambda-etl-bucket-123456789012-ap-northeast-1
-LambdaEtlStack.QueueUrl = https://sqs.ap-northeast-1.amazonaws.com/123456789012/lambda-etl-queue
-LambdaEtlStack.QueueName = lambda-etl-queue
-LambdaEtlStack.FunctionName = lambda-etl-processor
+## ステップ5：環境変数の設定
 
-Stack ARN:
-arn:aws:cloudformation:ap-northeast-1:123456789012:stack/LambdaEtlStack/...
-```
+1. Lambda関数の**設定**タブ→**環境変数**を開く
+2. 以下の環境変数を追加：
 
-## ステップ4：デプロイされたリソースの確認
+| キー | 値 | 説明 |
+|-----|---|------|
+| `S3_BUCKET_NAME` | `lambda-etl-bucket-[あなたの名前]-[日付]` | 作成したS3バケット名 |
+| `KEY_PREFIX` | `etl-output` | S3内のファイル保存先プレフィックス |
 
-### AWS CLIでの確認
+3. 「**保存**」をクリック
+
+## ステップ6：SQSトリガーの設定
+
+Lambda関数にSQSキューからのイベントを処理するトリガーを設定します。
+
+### トリガーの追加
+
+1. Lambda関数の**設定**タブ→**トリガー**を開く
+2. 「**トリガーを追加**」をクリック
+3. 以下の設定を入力：
+
+**トリガーの設定**
+- **ソース**: `SQS`
+- **SQSキュー**: 作成した `lambda-etl-queue` を選択
+- **バッチサイズ**: `1`（1メッセージずつ処理）
+- **有効**にチェック
+
+4. 「**追加**」をクリック
+
+## ステップ7：作成したリソースの確認
+
+### AWS CLIでの確認（オプション）
 
 ```bash
 # S3バケットの確認
@@ -343,106 +265,64 @@ aws s3 ls | grep lambda-etl
 aws sqs list-queues | grep lambda-etl
 
 # Lambda関数の確認
-aws lambda list-functions | grep lambda-etl
+aws lambda list-functions --query 'Functions[?contains(FunctionName, `lambda-etl`)]'
 ```
 
-**期待される出力例：**
-```bash
-# aws s3 ls | grep lambda-etl
-2025-09-15 17:30:29 lambda-etl-bucket-390402571563-ap-northeast-1
+### AWSコンソールでの最終確認
 
-# aws sqs list-queues | grep lambda-etl
-        "https://sqs.ap-northeast-1.amazonaws.com/390402571563/lambda-etl-dlq",
-        "https://sqs.ap-northeast-1.amazonaws.com/390402571563/lambda-etl-queue"
+1. **S3**: バケットが作成されている
+2. **SQS**: メインキューとDLQが作成されている
+3. **Lambda**: 関数が作成され、SQSトリガーが設定されている
+4. **IAM**: Lambda実行ロールにS3・SQS権限が付与されている
 
-# aws lambda list-functions | grep lambda-etl
-            "FunctionName": "lambda-etl-processor",
-            "FunctionArn": "arn:aws:lambda:ap-northeast-1:390402571563:function:lambda-etl-processor",
-                    "S3_BUCKET_NAME": "lambda-etl-bucket-390402571563-ap-northeast-1"
-                "LogGroup": "/aws/lambda/lambda-etl-processor"
-            "Description": "Lambda function for auto-deleting objects in lambda-etl-bucket-390402571563-ap-northeast-1 S3 bucket.",
-```
 
-### AWSコンソールでの確認
+## 作成完了
 
-1. **S3コンソール**: 作成されたバケットを確認
-2. **SQSコンソール**: キューとDLQが作成されているか確認
-3. **Lambdaコンソール**: 関数が正常にデプロイされているか確認
+これで、ETL処理に必要なAWSリソースの作成が完了しました。
+
+**作成されたリソース一覧：**
+- S3バケット：CSVファイルの出力先
+- SQSキュー：JSONメッセージの受信
+- Lambda関数：ETL処理ロジック
+- IAMロール：必要な権限設定
 
 ## トラブルシューティング
 
 ### よくあるエラーと対処法
 
-#### 1. 権限エラー
-
-```bash
-# エラー例
-AccessDenied: User is not authorized to perform: sts:AssumeRole
-
-# 対処法：IAMユーザーに適切な権限を付与
-# 最低限必要な権限：
-# - CloudFormationFullAccess
-# - IAMFullAccess
-# - S3FullAccess
-# - SQSFullAccess
-# - LambdaFullAccess
+**1. バケット名が重複**
 ```
-
-#### 2. リソース名の重複
-
-```bash
-# エラー例
 BucketAlreadyExists: The requested bucket name is not available
-
-# 対処法：バケット名にランダムな文字列を追加
-# lambda_etl_stack.py内のbucket_nameを変更
 ```
+対処：バケット名に追加の識別子（日付、名前など）を付けて再作成
 
-#### 3. Python依存関係のエラー
-
-```bash
-# エラー例
-ModuleNotFoundError: No module named 'pydantic'
-
-# 対処法：Lambda Layerを使用するか、依存関係をパッケージに含める
-# 簡易的な解決策として、requirements.txtをappディレクトリに配置
+**2. 権限エラー**
 ```
+AccessDenied
+```
+対処：IAMロールにS3FullAccess、SQSFullAccessが正しく付与されているか確認
+
+**3. Lambda関数のインポートエラー**
+```
+Unable to import module 'main'
+```
+対処：zipファイルの構造を確認。main.pyがルートディレクトリにあることを確認
 
 ## リソースの削除
 
-開発環境のリソースを削除する場合：
+学習完了後、料金を避けるためリソースを削除する場合：
 
-```bash
-# スタック全体の削除
-cdk destroy
-
-# 確認プロンプトで 'y' を入力
-```
-
-**注意**: S3バケットにファイルが残っている場合、削除に失敗することがあります。
-事前にバケットを空にしてから削除してください。
+1. **Lambda関数**：削除
+2. **SQSキュー**：両方削除（メインキュー、DLQ）
+3. **S3バケット**：オブジェクトを削除してからバケット削除
+4. **IAMロール**：Lambda関数削除時に自動削除される
 
 ## まとめ
 
-本章では、AWS CDKを使って以下のリソースを定義・デプロイしました：
-
-| リソース | 目的 | 主要な設定 |
-|---------|------|-----------|
-| **S3バケット** | CSV ファイルの保存先 | 自動削除設定、パブリックアクセス禁止 |
-| **SQSキュー** | JSON メッセージの受信 | DLQ設定、可視性タイムアウト |
-| **Lambda関数** | ETL処理の実行 | SQSトリガー、S3書き込み権限 |
-
-
-## 補足：本番環境での考慮事項
-
-本章では開発・学習目的の設定を使用していますが、本番環境では以下の点を検討してください：
-
-* **S3バケット**: `RemovalPolicy.RETAIN`に変更
-* **暗号化**: S3とSQSでKMS暗号化を有効化
-* **監視**: CloudWatchアラームの設定
-* **ネットワーク**: VPC内でのプライベート通信
-* **権限**: 最小権限の原則に基づいたIAMロール設計
-
+手動作成により、以下のメリットがあります。
+- AWSサービスの設定項目を理解できる
+- サービス間の関係性を把握できる
+- 短時間（15-20分）で動作環境を構築できる
 
 ## 次章の内容
 

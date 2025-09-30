@@ -63,6 +63,20 @@ pytest = "^8.2.0"
 pytest-cov = "^6.1.1"
 flake8 = "^7.1.1"
 black = "^24.8.0"
+isort = "^5.13.2"
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+known_first_party = ["app"]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
 
 [build-system]
 requires = ["poetry-core"]
@@ -150,6 +164,7 @@ AWS_DEFAULT_REGION=ap-northeast-1
 
 # S3バケット名
 S3_BUCKET_NAME=lambda-etl-bucket
+KEY_PREFIX=etl-output
 ```
 
 実際の開発では、`.env.example`をコピーして`.env`を作成し、必要に応じて値を調整します。
@@ -216,7 +231,7 @@ Poetry や Docker のコマンドは長くなりがちなので、開発効率�
 #### 📄 lambda-etl/Makefile
 
 ```makefile
-.PHONY: up test lint format help
+.PHONY: up test lint help
 
 up:
 	docker compose up --build
@@ -225,16 +240,12 @@ test:
 	docker compose run --rm app poetry run pytest --cov=app tests/
 
 lint:
-	docker compose run --rm app poetry run flake8 app tests
-
-format:
-	docker compose run --rm app poetry run black app tests
+	docker compose exec app bash scripts/run_lint.sh
 
 help:
 	@echo "make up      # Dockerで開発環境を起動"
 	@echo "make test    # テストを実行"
-	@echo "make lint    # コードの静的チェック"
-	@echo "make format  # コード整形"
+	@echo "make lint    # コードチェックを実行"
 ```
 
 > `make test` や `make up` のように、開発時に便利な操作をすぐ呼び出せます。
