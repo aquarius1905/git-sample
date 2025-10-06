@@ -1,3 +1,71 @@
-id	uploaded_at	file	start_at	finish_at	status	all_count	success_count	failed_count	failed_text	created_at	updated_at	deleted_at	created_by	csv_type_id	deleted_by	tenant_id	updated_by	file_name	create_count	update_count	is_auto	skip_count
-925	2025-09-28 06:36:16.606981	uploads/csv/14/T88_item_notification_request_20250928013040.tsv	2025-09-28 10:01:50.022332	2025-09-28 10:02:19.678721	3	70232	0	0		2025-09-28 06:36:16.607079	2025-09-28 10:02:19.678887	NULL	NULL	20	NULL	14	NULL	T88_item_notification_request_20250928013040.tsv	0	0	1	45992
-624	2025-09-27 09:19:27.087801	uploads/csv/14/T88_item_notification_request_20250927013039.tsv	2025-09-28 10:00:50.125741	2025-09-28 10:01:28.840627	3	70227	27355	0		2025-09-27 09:19:27.087970	2025-09-28 10:01:28.840721	NULL	NULL	20	NULL	14	NULL	T88_item_notification_request_20250927013039.tsv	27355	0	1	18637
+具体的な追加位置を示します。
+
+## 1. ダングリングイメージの説明
+
+**場所:** 「削除対象になるもの」のセクション
+
+**現在:**
+```markdown
+* **ダングリングイメージ**（タグが外れて参照されないイメージ）
+```
+
+**修正後:**
+```markdown
+* **ダングリングイメージ**（`docker images` で `<none>` と表示される不要なイメージ）
+```
+
+---
+
+## 2. `-a` オプションの注意書き
+
+**場所:** 「主なオプション」の「`-a` / `--all`」の中
+
+**現在:**
+```markdown
+:::message alert
+**注意**: `-a` を付けると「今は使っていないけれど、後で使うかもしれないイメージ」まで削除されます。再ビルドに時間がかかる可能性があるため慎重に使いましょう。
+:::
+```
+
+**修正後:**
+```markdown
+:::message alert
+**注意**: `-a` を付けると、今コンテナが使っていないイメージが全て削除されます。
+例えば `docker pull` でダウンロードしただけで、まだ使っていないイメージも消えてしまうため、再度ダウンロードが必要になる場合があります。
+:::
+```
+
+---
+
+## 3. 削除前の確認方法
+
+**場所:** 「`docker system prune` の基本」のセクションと「削除対象になるもの」のセクションの**間**に新しいセクションを追加
+
+**追加内容:**
+```markdown
+## 削除前に確認する方法
+
+実行前に、どれくらいのリソースが溜まっているか確認できます。
+
+```bash
+docker system df
+```
+
+実行例:
+```
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          10        2         2.5GB     1.8GB (72%)
+Containers      5         1         100MB     80MB (80%)
+Local Volumes   3         1         500MB     400MB (80%)
+Build Cache     20        0         1.2GB     1.2GB (100%)
+```
+
+`RECLAIMABLE` の列が、削除可能なサイズを示しています。
+
+## 削除対象になるもの
+（以下続く）
+```
+
+---
+
+以上の3箇所を修正すれば完成です！

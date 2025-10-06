@@ -176,16 +176,18 @@
 
 #### デプロイパッケージの作成
 
-ローカルで以下のコマンドを実行し、デプロイ用のzipファイルを作成：
+ローカルで以下のコマンドを実行し、デプロイ用のzipファイルを作成します。
 
 ```bash
 # プロジェクトルートディレクトリで実行
 cd lambda-etl
 
-# デプロイ用ディレクトリを作成
-mkdir -p deploy-package
-cp -r app/* deploy-package/
-cp main.py deploy-package/
+# デプロイ用ディレクトリを作成（既存があれば削除）
+rm -rf deploy-package
+mkdir deploy-package
+
+# __pycache__を除外してコピー
+rsync -av --exclude='__pycache__' --exclude='*.pyc' app/ deploy-package/
 
 # zipファイルを作成
 cd deploy-package
@@ -197,8 +199,17 @@ cd ..
 
 1. Lambda関数の**コード**タブを開く
 2. 「**アップロード元**」→「**.zipファイル**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/1e6ffac5cfd9-20250930.jpg)
+
 3. 作成した `lambda-etl-function.zip` を選択してアップロード
+
+![](https://storage.googleapis.com/zenn-user-upload/a1890203676a-20250930.jpg)
+
 4. 「**保存**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/c6ec0a210a18-20250930.jpg)
+
 
 #### ハンドラーの設定
 
