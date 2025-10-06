@@ -20,7 +20,7 @@
 
 ## ステップ1：S3バケットの作成
 
-### S3コンソールでバケットを作成
+### 1-1. S3コンソールでバケットを作成
 
 1. **AWSコンソール**にログインし、**S3**サービスを開く
 2. 「**バケットを作成**」をクリック
@@ -57,7 +57,7 @@
 
 ![](https://storage.googleapis.com/zenn-user-upload/fc417525cae3-20250923.jpeg)
 
-### 作成確認
+### 1-2. 作成確認
 
 バケット一覧に作成したバケットが表示されることを確認してください。
 
@@ -147,7 +147,7 @@
 
 ## ステップ3：Lambda関数の作成
 
-### Lambdaコンソールで関数を作成
+### 3-1. Lambdaコンソールで関数を作成
 
 1. **Lambda**サービスを開く
 2. 「**関数の作成**」をクリック
@@ -172,7 +172,7 @@
 
 ![](https://storage.googleapis.com/zenn-user-upload/2b5823c136b2-20250929.jpeg)
 
-### 関数コードのデプロイ
+### 3-2. 関数コードのデプロイ
 
 #### デプロイパッケージの作成
 
@@ -211,58 +211,109 @@ cd ..
 ![](https://storage.googleapis.com/zenn-user-upload/c6ec0a210a18-20250930.jpg)
 
 
-#### ハンドラーの設定
+#### ランタイム設定（ハンドラー）
 
-**設定**タブの**全般設定**で：
-- **ハンドラー**: `main.lambda_handler` に変更
-- **タイムアウト**: `3分`
-- **メモリ**: `256MB`
+1. Lambda関数の**コード**タブを開く
+2. **ランタイム設定**の「**編集**」ボタンをクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/2a527cdd6712-20251002.jpeg)
+
+3. **ハンドラー**: `main.lambda_handler` に変更
+4. 「**保存**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/ef66d6620587-20251002.jpg)
+
+
+#### 基本設定（タイムアウト・メモリ）
+
+1. Lambda関数の**設定**タブを開く
+2. 左側のメニューから**一般設定**をクリック
+3. 「**編集**」ボタンをクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/4b4c33e202f5-20251002.jpeg)
+
+4. 以下を変更：
+   - **タイムアウト**: `3分0秒`
+   - **メモリ**: `256MB`
+5. 「**保存**」ボタンをクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/590e0ced5888-20251002.jpg)
 
 
 ## ステップ4：IAM権限の設定
 
 Lambda関数がS3とSQSにアクセスできるよう権限を追加します。
 
-### 実行ロールへのポリシー追加
+### 4-1. 実行ロールへのポリシー追加
 
-1. Lambda関数の**設定**タブ→**権限**を開く
-2. **実行ロール**のリンクをクリック（IAMコンソールが開く）
-3. 「**許可を追加**」→「**ポリシーをアタッチ**」をクリック
-4. 以下のポリシーを検索して追加：
+1. Lambda関数の**設定**タブをクリック
+2. 左側のメニューから**アクセス権限**をクリック
+3. **ロール名**のリンクをクリック（IAMコンソールが開く）
+
+![](https://storage.googleapis.com/zenn-user-upload/db420565477a-20251002.jpg)
+
+4. 「**許可を追加**」→「**ポリシーをアタッチ**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/e38a6ecb77ae-20251002.jpg)
+
+
+5. 以下のポリシーを検索して追加する
    - `AmazonS3FullAccess`
    - `AmazonSQSFullAccess`
+
+![](https://storage.googleapis.com/zenn-user-upload/91cd58a9a875-20251002.jpg)
+
+![](https://storage.googleapis.com/zenn-user-upload/9c5e2799feec-20251002.jpeg)
+
 
 注意：本番環境では最小権限の原則に従い、より制限的なポリシーを使用してください。
 
 ## ステップ5：環境変数の設定
 
-1. Lambda関数の**設定**タブ→**環境変数**を開く
-2. 以下の環境変数を追加：
+1. Lambda関数の**設定**タブをクリック
+2. 左側のメニューから**環境変数**をクリック
+3. 「**編集**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/df202d1f5cf3-20251003.jpg)
+
+
+4. **環境変数の追加**ボタンをクリックし、以下の環境変数を追加
 
 | キー | 値 | 説明 |
 |-----|---|------|
 | `S3_BUCKET_NAME` | `lambda-etl-bucket-[あなたの名前]-[日付]` | 作成したS3バケット名 |
 | `KEY_PREFIX` | `etl-output` | S3内のファイル保存先プレフィックス |
 
-3. 「**保存**」をクリック
+5. 「**保存**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/2c5ca848c6c9-20251003.jpg)
+
 
 ## ステップ6：SQSトリガーの設定
 
 Lambda関数にSQSキューからのイベントを処理するトリガーを設定します。
 
-### トリガーの追加
+### 6-1. トリガーの追加
 
-1. Lambda関数の**設定**タブ→**トリガー**を開く
-2. 「**トリガーを追加**」をクリック
-3. 以下の設定を入力：
+1. Lambda関数の**設定**タブをクリック
+2. **トリガー**を開く
+3. 「**トリガーを追加**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/e9f1c1fcb054-20251005.jpg)
+
+4. 以下の設定を入力：
 
 **トリガーの設定**
 - **ソース**: `SQS`
 - **SQSキュー**: 作成した `lambda-etl-queue` を選択
 - **バッチサイズ**: `1`（1メッセージずつ処理）
-- **有効**にチェック
+- **トリガーをアクティブ化**にチェック
 
-4. 「**追加**」をクリック
+![](https://storage.googleapis.com/zenn-user-upload/98ae213d1e3f-20251006.jpg)
+
+5. 「**追加**」をクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/ccd7af04ffbf-20251006.jpg)
 
 ## ステップ7：作成したリソースの確認
 
