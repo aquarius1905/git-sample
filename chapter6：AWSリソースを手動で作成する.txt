@@ -330,6 +330,61 @@ aws sqs list-queues | grep lambda-etl
 aws lambda list-functions --query 'Functions[?contains(FunctionName, `lambda-etl`)]'
 ```
 
+実行結果：
+
+```bash
+# S3バケットの確認
+2025-09-23 09:56:52 lambda-etl-bucket-fd2025-20250924
+
+# SQSキューの確認
+        "https://sqs.ap-northeast-1.amazonaws.com/390402571563/lambda-etl-dlq",
+        "https://sqs.ap-northeast-1.amazonaws.com/390402571563/lambda-etl-queue"
+
+# Lambda関数の確認
+[
+    {
+        "FunctionName": "lambda-etl-processor",
+        "FunctionArn": "arn:aws:lambda:ap-northeast-1:390402571563:function:lambda-etl-processor",
+        "Runtime": "python3.12",
+        "Role": "arn:aws:iam::390402571563:role/service-role/lambda-etl-processor-role-3ugkabfn",
+        "Handler": "main.lambda_handler",
+        "CodeSize": 17023,
+        "Description": "",
+        "Timeout": 180,
+        "MemorySize": 256,
+        "LastModified": "2025-10-03T12:47:36.000+0000",
+        "CodeSha256": "g6XvJ3//lk/f+DB4IvQvmo4gtEG/+WERYgmlf0MjNKw=",
+        "Version": "$LATEST",
+        "Environment": {
+            "Variables": {
+                "KEY_PREFIX": "etl-output",
+                "S3_BUCKET_NAME": "lambda-etl-bucket-fd2025-20250924"
+            }
+        },
+        "TracingConfig": {
+            "Mode": "PassThrough"
+        },
+        "RevisionId": "4abd0098-85a4-4e5f-b4c8-8638c334172b",
+        "PackageType": "Zip",
+        "Architectures": [
+            "x86_64"
+        ],
+        "EphemeralStorage": {
+            "Size": 512
+        },
+        "SnapStart": {
+            "ApplyOn": "None",
+            "OptimizationStatus": "Off"
+        },
+        "LoggingConfig": {
+            "LogFormat": "Text",
+            "LogGroup": "/aws/lambda/lambda-etl-processor"
+        }
+    }
+]
+(END)
+```
+
 ### AWSコンソールでの最終確認
 
 1. **S3**: バケットが作成されている
