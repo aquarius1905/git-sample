@@ -179,20 +179,8 @@
 ローカルで以下のコマンドを実行し、デプロイ用のzipファイルを作成します。
 
 ```bash
-# プロジェクトルートディレクトリで実行
-cd lambda-etl
-
-# デプロイ用ディレクトリを作成（既存があれば削除）
-rm -rf deploy-package
-mkdir deploy-package
-
-# __pycache__を除外してコピー
-rsync -av --exclude='__pycache__' --exclude='*.pyc' app/ deploy-package/
-
-# zipファイルを作成
-cd deploy-package
-zip -r ../lambda-etl-function.zip .
-cd ..
+chmod +x deploy.sh
+./deploy.sh
 ```
 
 #### zipファイルのアップロード

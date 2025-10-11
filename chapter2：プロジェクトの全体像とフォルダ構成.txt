@@ -55,7 +55,6 @@ lambda-etl
 │   │   └── s3_uploader.py        # S3アップロード処理
 │   └── main.py                   # Lambdaのエントリーポイント（ハンドラー関数）
 ├── tests/                        # pytestによる単体テストコード
-│   ├── conftest.py               # pytest設定・共通フィクスチャ
 │   ├── test_main.py              # Lambda関数のテスト
 │   └── test_core.py              # core/内のロジックテスト
 ├── Dockerfiles/                  # Docker用の設定ファイル格納フォルダ

@@ -156,12 +156,6 @@ LocalStackやAWS接続用の環境変数を管理するため、設定ファイ�
 #### 📄 lambda-etl/.env.example
 
 ```bash
-# LocalStack用AWS設定
-AWS_ENDPOINT_URL=http://localstack:4566
-AWS_ACCESS_KEY_ID=test
-AWS_SECRET_ACCESS_KEY=test
-AWS_DEFAULT_REGION=ap-northeast-1
-
 # S3バケット名
 S3_BUCKET_NAME=lambda-etl-bucket
 KEY_PREFIX=etl-output
@@ -174,18 +168,6 @@ cp .env.example .env
 ```
 
 > `.env`ファイルには実際の認証情報が含まれる可能性があるため、`.gitignore`で除外されています。
-
-
-## LocalStack でAWSサービスをローカル再現
-
-AWS Lambda開発では、S3やSQSなどのAWSサービスとの連携テストが必要です。
-しかし、開発のたびに実際のAWSリソースを作成すると以下のような問題が出てきます。
-* コストがかかる
-* 削除し忘れのリスクがある
-* テスト環境の準備に時間がかかる
-
-**LocalStack**は、これらのAWSサービスをローカルで完全に模擬できるツールです。
-Docker上でS3バケットやSQSキューを作成し、本番と同じAPIで操作できます。
 
 
 ## docker-compose.yml で起動設定をまとめる
@@ -205,19 +187,10 @@ services:
       - .:/app
     working_dir: /app
     command: tail -f /dev/null
-    depends_on:
-      - localstack
     env_file:
       - .env
     environment:
       - PYTHONPATH=/app
-
-  localstack:
-    image: localstack/localstack:3.3
-    environment:
-      - SERVICES=s3,sqs
-    ports:
-      - "4566:4566"
 ```
 
 > `volumes` により、ローカルでコードを変更すると即座にコンテナに反映されるため、再ビルド不要で開発できます。
@@ -293,6 +266,14 @@ htmlcov/
 
 # Dockerログ
 *.log
+
+# Node.js関連
+node_modules/
+npm-debug.log*
+
+# デプロイ関連
+deploy-package/
+lambda-etl-function.zip
 ```
 
 
@@ -329,32 +310,13 @@ poetry run python -c "import pydantic; print('pydantic imported successfully')"
 
 期待する出力例：
 ```bash
+# Pythonバージョン確認
 Python 3.12.X
+
+# 依存パッケージの動作確認
 boto3 imported successfully
 pydantic imported successfully
 ```
-
-
-#### Step 4: LocalStackの確認（ローカルで実行）
-
-新しいターミナルを開き、ローカル環境から以下のコマンドを実行します。
-
-```bash
-# LocalStackのヘルスチェック
-curl http://localhost:4566/_localstack/health
-
-# S3とSQSサービスの確認
-curl http://localhost:4566/_localstack/health | grep -E "(s3|sqs)"
-```
-
-期待する出力例：
-```
-{"services": {"s3": "available", "sqs": "available", ...}}
-    "s3": "available",
-    "sqs": "available",
-```
-
-> エラーが出る場合は、`make up`でコンテナが正常に起動しているか確認してください。
 
 すべて正常に動作すれば、開発環境の構築は完了です。
 

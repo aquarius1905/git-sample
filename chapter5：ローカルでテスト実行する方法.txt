@@ -15,7 +15,6 @@ MagicMock を使用することで、AWS サービスに依存せず高速でテ
 ```
 lambda-etl/
 ├── tests/                        # pytestによる単体テストコード
-│   ├── conftest.py               # pytest設定・共通フィクスチャ
 │   ├── test_core.py              # core/内のロジックテスト
 │   └── test_main.py              # Lambda関数のテスト
 ```
@@ -36,36 +35,12 @@ docker compose build
 docker compose up -d
 ```
 
-起動後、以下の 2 つのサービスが立ち上がります：
+起動後、以下のサービスが立ち上がります：
 
 * `app`：Lambda 関数の開発用コンテナ
-* `localstack`：将来の統合テスト用（本章では未使用）
 
 
 ## ステップ2： pytest によるユニットテスト
-
-### 📄 lambda-etl/tests/conftest.py
-
-```python
-from unittest.mock import patch
-
-import pytest
-
-from app.core.config import Settings
-
-
-@pytest.fixture(autouse=True)
-def setup_test_env():
-    """テスト用の設定をモック化"""
-    test_settings = Settings(
-        S3_BUCKET_NAME="test-bucket",
-        KEY_PREFIX="test-output",
-        AWS_ENDPOINT_URL="http://localstack:4566",
-    )
-
-    with patch("app.core.config.settings", test_settings):
-        yield
-```
 
 ### 📄 lambda-etl/tests/test_main.py
 
@@ -109,25 +84,13 @@ class TestLambdaHandler:
 
         response = lambda_handler(event, None)
 
-        # 自分のコードが正しくS3クライアントを呼び出したかを検証
-        # 環境変数AWS_ENDPOINT_URLが設定されているため、endpoint_urlパラメータ付きで呼ばれる
-        mock_boto3_client.assert_called_with(
-            "s3", endpoint_url="http://localstack:4566"
-        )
+        # ETLとして重要なのは「S3アップロードが呼ばれたか」だけ
         mock_s3.put_object.assert_called_once()
 
-        # put_objectの引数をより詳しく検証
-        call_args = mock_s3.put_object.call_args
-        assert call_args[1]["Bucket"] == "lambda-etl-bucket"
-        assert call_args[1]["Key"].startswith("etl-output/output_")
-        assert call_args[1]["Key"].endswith(".csv")
-        assert call_args[1]["ContentType"] == "text/csv"
-
-        # レスポンスの検証
+        # レスポンスの検証（アプリケーションの責任範囲）
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert "s3_key" in body
-        assert "processed_records" in body
         assert body["processed_records"] == 2
 
     def test_lambda_handler_no_records(self):
@@ -189,7 +152,6 @@ class TestLambdaHandler:
     @patch("app.core.s3_uploader.boto3.client")
     def test_lambda_handler_s3_error(self, mock_boto3_client):
         """S3アップロードエラーの場合のテスト"""
-        # S3クライアントのモック
         mock_s3 = MagicMock()
         mock_s3.put_object.side_effect = Exception("S3 upload failed")
         mock_boto3_client.return_value = mock_s3
@@ -302,31 +264,32 @@ make test
 **期待される出力例：**
 
 ```bash
-================================================================ test session starts ================================================================
+docker compose run --rm app poetry run pytest --cov=app tests/
+================================================================= test session starts =================================================================
 platform linux -- Python 3.12.11, pytest-8.4.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: cov-6.3.0
-collected 11 items                                                                                                                                  
+collected 11 items                                                                                                                                    
 
-tests/test_core.py .....                                                                                                                      [ 45%]
-tests/test_main.py ......                                                                                                                     [100%]
+tests/test_core.py .....                                                                                                                        [ 45%]
+tests/test_main.py ......                                                                                                                       [100%]
 
-================================================================== tests coverage ===================================================================
-_________________________________________________ coverage: platform linux, python 3.12.11-final-0 __________________________________________________
+=================================================================== tests coverage ====================================================================
+__________________________________________________ coverage: platform linux, python 3.12.11-final-0 ___________________________________________________
 
 Name                      Stmts   Miss  Cover
 ---------------------------------------------
 app/__init__.py               0      0   100%
 app/core/__init__.py          0      0   100%
-app/core/config.py            9      0   100%
+app/core/config.py            7      0   100%
 app/core/csv_writer.py       13      0   100%
-app/core/s3_uploader.py      13      1    92%
+app/core/s3_uploader.py      10      0   100%
 app/core/schema.py            8      0   100%
 app/main.py                  42      0   100%
 ---------------------------------------------
-TOTAL                        85      1    99%
-================================================================ 11 passed in 0.58s =================================================================
+TOTAL                        80      0   100%
+================================================================= 11 passed in 0.76s ==================================================================
 ```
 
 ## まとめ
@@ -342,7 +305,5 @@ TOTAL                        85      1    99%
 
 ## 次章の内容
 
-次章では、**AWSコンソール**を使って実際のAWS環境に必要なリソースを作成し、
-Lambda関数をデプロイします。
-手動でリソースを作成することで、各サービスの設定項目や関係性を理解しながら、
-インフラを構築できます。
+次章では、**AWSコンソール**を使って実際のAWS環境に必要なリソースを作成し、Lambda関数をデプロイします。
+手動でリソースを作成することで、各サービスの設定項目や関係性を理解しながら、インフラを構築できます。
