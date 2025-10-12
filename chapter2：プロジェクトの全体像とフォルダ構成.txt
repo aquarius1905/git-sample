@@ -54,19 +54,21 @@ lambda-etl
 │   │   ├── csv_writer.py         # CSV変換処理
 │   │   └── s3_uploader.py        # S3アップロード処理
 │   └── main.py                   # Lambdaのエントリーポイント（ハンドラー関数）
-├── tests/                        # pytestによる単体テストコード
-│   ├── test_main.py              # Lambda関数のテスト
-│   └── test_core.py              # core/内のロジックテスト
 ├── Dockerfiles/                  # Docker用の設定ファイル格納フォルダ
 │   └── Dockerfile.dev            # 開発用のDockerfile
-├── docker-compose.yml            # Dockerサービスをまとめて起動する設定ファイル
 ├── .github/
 │   └── workflows/                # GitHub ActionsのCI/CD設定フォルダ
 │       └── main.yml              # 自動テスト・デプロイのワークフロー定義
 ├── scripts/
 │   └── run_lint.sh               # lintを実行するシェルスクリプト
-├── .gitignore                    # Git管理対象から除外する設定ファイル
+├── tests/                        # pytestによる単体テストコード
+│   ├── test_main.py              # Lambda関数のテスト
+│   └── test_core.py              # core/内のロジックテスト
 ├── .env.example                  # 環境変数のサンプルファイル
+├── .flake8                       # 
+├── .gitignore                    # Git管理対象から除外する設定ファイル
+├── deploy.sh                     # デプロイパッケージ作成スクリプト
+├── docker-compose.yml            # Dockerサービスをまとめて起動する設定ファイル
 ├── Makefile                      # lintやテスト実行などのコマンドを簡単に実行
 ├── poetry.lock                   # Poetryによる依存バージョンのロックファイル
 ├── pyproject.toml                # Poetryによるプロジェクト設定・依存管理の定義ファイル
