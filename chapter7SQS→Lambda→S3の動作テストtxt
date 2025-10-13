@@ -1,0 +1,485 @@
+## はじめに
+
+前章でAWSリソースの作成とLambda関数のデプロイが完了しました。
+本章では、実際にSQSにメッセージを送信し、Lambda関数が正常に動作してS3にCSVファイルが保存されることを確認します。
+
+また、CloudWatchログを使った動作確認の方法や、エラー発生時のトラブルシューティング手順についても解説します。
+
+
+## 本章の流れ
+
+1. SQSキューへテストメッセージを送信
+2. Lambda関数の実行を確認（CloudWatchログ）
+3. S3バケットへのCSV出力を確認
+4. 異常系のテスト（エラーハンドリング確認）
+5. トラブルシューティング
+
+
+## ステップ1：SQSへのテストメッセージ送信
+
+### 1-1. SQSコンソールからメッセージを送信
+
+1. **AWSコンソール**で**SQS**サービスを開く
+2. 作成した `lambda-etl-queue` をクリック
+
+![](画像URL)
+
+3. 「**メッセージを送信および受信**」ボタンをクリック
+
+![](画像URL)
+
+4. 「**メッセージを送信**」セクションで以下のJSONを入力
+
+**メッセージ本文（正常系）：**
+```json
+{
+  "records": [
+    {
+      "user_id": 1,
+      "name": "山田太郎",
+      "email": "taro.yamada@example.com"
+    },
+    {
+      "user_id": 2,
+      "name": "佐藤花子",
+      "email": "hanako.sato@example.com"
+    },
+    {
+      "user_id": 3,
+      "name": "鈴木一郎",
+      "email": "ichiro.suzuki@example.com"
+    }
+  ]
+}
+```
+
+5. 「**メッセージを送信**」ボタンをクリック
+
+![](画像URL)
+
+6. 送信成功のメッセージが表示されることを確認
+
+![](画像URL)
+
+### 1-2. AWS CLIでの送信（オプション）
+
+コマンドラインからメッセージを送信する場合：
+
+```bash
+# キューURLを取得
+QUEUE_URL=$(aws sqs get-queue-url --queue-name lambda-etl-queue --query 'QueueUrl' --output text)
+
+# メッセージを送信
+aws sqs send-message \
+  --queue-url $QUEUE_URL \
+  --message-body '{
+    "records": [
+      {
+        "user_id": 1,
+        "name": "山田太郎",
+        "email": "taro.yamada@example.com"
+      },
+      {
+        "user_id": 2,
+        "name": "佐藤花子",
+        "email": "hanako.sato@example.com"
+      }
+    ]
+  }'
+```
+
+**期待される出力：**
+```json
+{
+    "MD5OfMessageBody": "...",
+    "MessageId": "..."
+}
+```
+
+
+## ステップ2：Lambda関数の実行確認
+
+### 2-1. CloudWatchログの確認
+
+1. **AWSコンソール**で**CloudWatch**サービスを開く
+2. 左側メニューから「**ログ → ロググループ**」をクリック
+3. `/aws/lambda/lambda-etl-processor` を検索して開く
+
+![](画像URL)
+
+4. 最新のログストリームをクリック
+
+![](画像URL)
+
+5. ログ内容を確認
+
+**正常実行時のログ例：**
+```
+START RequestId: abc123...
+処理開始: 1件のメッセージを受信
+CSV生成完了: 3件のレコードを処理
+S3アップロード完了: etl-output/output_20251008T123456Z.csv
+END RequestId: abc123...
+REPORT RequestId: abc123... Duration: 1234.56 ms Billed Duration: 1235 ms Memory Size: 256 MB Max Memory Used: 89 MB
+```
+
+![](画像URL)
+
+### 2-2. Lambda関数の実行履歴確認
+
+1. **Lambda**コンソールで `lambda-etl-processor` を開く
+2. 「**モニタリング**」タブをクリック
+3. 「**CloudWatch Insightsで表示**」をクリック（オプション）
+
+![](画像URL)
+
+4. 実行回数、エラー率、実行時間などのメトリクスを確認
+
+![](画像URL)
+
+
+## ステップ3：S3バケットの確認
+
+### 3-1. CSVファイルの作成確認
+
+1. **S3**コンソールを開く
+2. 作成したバケット `lambda-etl-bucket-[your-name]-[date]` をクリック
+
+![](画像URL)
+
+3. `etl-output/` フォルダ内に CSV ファイルが作成されていることを確認
+
+![](画像URL)
+
+4. CSVファイルをダウンロードして内容を確認
+
+**期待されるCSVファイルの内容：**
+```csv
+user_id,name,email
+1,山田太郎,taro.yamada@example.com
+2,佐藤花子,hanako.sato@example.com
+3,鈴木一郎,ichiro.suzuki@example.com
+```
+
+### 3-2. AWS CLIでの確認（オプション）
+
+```bash
+# バケット内のファイル一覧を表示
+aws s3 ls s3://lambda-etl-bucket-[your-name]-[date]/etl-output/
+
+# 最新のCSVファイルをダウンロード
+aws s3 cp s3://lambda-etl-bucket-[your-name]-[date]/etl-output/output_XXXXXX.csv ./downloaded.csv
+
+# ファイル内容を確認
+cat downloaded.csv
+```
+
+
+## ステップ4：異常系のテスト
+
+正常系の動作確認ができたら、エラーケースも確認しましょう。
+
+### 4-1. バリデーションエラーのテスト
+
+**不正なデータ型を含むメッセージ：**
+```json
+{
+  "records": [
+    {
+      "user_id": "invalid_string",
+      "name": "山田太郎",
+      "email": "taro.yamada@example.com"
+    }
+  ]
+}
+```
+
+1. 上記のメッセージをSQSに送信
+2. CloudWatchログを確認
+
+**期待されるログ：**
+```
+処理開始: 1件のメッセージを受信
+バリデーションエラー: ...
+```
+
+3. メッセージがデッドレターキュー（DLQ）に移動したことを確認
+
+![](画像URL)
+
+### 4-2. 空のレコードのテスト
+
+**空のレコード配列：**
+```json
+{
+  "records": []
+}
+```
+
+**期待されるログ：**
+```
+処理開始: 1件のメッセージを受信
+データエラー発生: 処理対象のレコードが存在しません
+```
+
+### 4-3. 不正なJSON形式のテスト
+
+**JSONとして不正な形式：**
+```
+{ invalid json
+```
+
+**期待されるログ：**
+```
+処理開始: 1件のメッセージを受信
+JSON解析エラー: ...
+```
+
+
+## ステップ5：デッドレターキューの確認
+
+### 5-1. DLQ内のメッセージ確認
+
+1. **SQS**コンソールで `lambda-etl-dlq` を開く
+2. 「**メッセージを送信および受信**」をクリック
+3. 「**メッセージをポーリング**」ボタンをクリック
+
+![](画像URL)
+
+4. 処理に失敗したメッセージが表示されることを確認
+
+![](画像URL)
+
+5. メッセージをクリックして詳細を確認
+
+**DLQメッセージの属性：**
+- `ApproximateReceiveCount`: 受信回数（3回で設定）
+- `SentTimestamp`: 送信日時
+- `ApproximateFirstReceiveTimestamp`: 初回受信日時
+
+### 5-2. DLQメッセージの処理
+
+失敗したメッセージを確認後：
+
+1. 原因を特定（データ形式の誤り、Lambda関数のバグなど）
+2. 必要に応じてデータを修正
+3. 修正後のメッセージを再度メインキューに送信
+4. DLQのメッセージを削除
+
+
+## トラブルシューティング
+
+### よくある問題と対処法
+
+#### 問題1：Lambda関数が実行されない
+
+**症状：**
+- SQSにメッセージを送信してもLambdaが起動しない
+- CloudWatchログにエントリが作成されない
+
+**確認ポイント：**
+1. Lambda関数のトリガー設定を確認
+```bash
+aws lambda list-event-source-mappings \
+  --function-name lambda-etl-processor
+```
+
+2. トリガーが有効化されているか確認
+   - Lambdaコンソール → 設定 → トリガー
+   - 「有効」になっているか確認
+
+3. SQSキューのポリシー確認
+   - Lambda関数に`sqs:ReceiveMessage`権限があるか
+
+**対処法：**
+- トリガーを削除して再作成
+- IAMロールに`AmazonSQSFullAccess`が付与されているか確認
+
+#### 問題2：S3へのアップロードに失敗
+
+**症状：**
+```
+AccessDenied: Access Denied
+```
+
+**確認ポイント：**
+1. Lambda実行ロールにS3権限があるか
+```bash
+aws iam list-attached-role-policies \
+  --role-name lambda-etl-processor-role-xxxxx
+```
+
+2. 環境変数の設定を確認
+   - `S3_BUCKET_NAME`が正しいか
+   - バケット名にタイポがないか
+
+**対処法：**
+- IAMロールに`AmazonS3FullAccess`を追加
+- 環境変数を再設定
+
+#### 問題3：タイムアウトエラー
+
+**症状：**
+```
+Task timed out after 3.00 seconds
+```
+
+**原因：**
+- Lambda関数のタイムアウト設定が短すぎる
+- 処理するデータ量が多い
+
+**対処法：**
+1. Lambda関数の設定 → 一般設定 → タイムアウトを延長（例：5分）
+2. SQSキューの可視性タイムアウトも調整（Lambdaタイムアウト × 6倍推奨）
+
+#### 問題4：メモリ不足エラー
+
+**症状：**
+```
+Runtime exited with error: signal: killed
+```
+
+**対処法：**
+- Lambda関数の設定 → 一般設定 → メモリを増やす（例：512MB）
+
+#### 問題5：インポートエラー
+
+**症状：**
+```
+Unable to import module 'app.main': No module named 'app'
+```
+
+**原因：**
+- デプロイパッケージの構造が間違っている
+- ハンドラー設定が間違っている
+
+**対処法：**
+1. デプロイパッケージを再作成
+```bash
+./deploy.sh
+```
+
+2. zipファイルの内容を確認
+```bash
+unzip -l lambda-etl-function.zip
+```
+
+期待される構造：
+```
+app/
+  __init__.py
+  main.py
+  core/
+    __init__.py
+    config.py
+    ...
+```
+
+3. ハンドラー設定を確認
+   - 正しい設定：`app.main.lambda_handler`
+
+
+## 動作確認のチェックリスト
+
+以下の項目をすべて確認できたら、動作確認は完了です。
+
+- [ ] SQSにメッセージを送信できる
+- [ ] Lambda関数が自動的に起動する
+- [ ] CloudWatchログに実行ログが記録される
+- [ ] S3バケットにCSVファイルが作成される
+- [ ] CSVファイルの内容が正しい
+- [ ] バリデーションエラーが正しく処理される
+- [ ] エラーメッセージがDLQに移動する
+- [ ] CloudWatchメトリクスでエラー率を確認できる
+
+
+## 複数メッセージの連続テスト
+
+実運用を想定して、複数のメッセージを連続して送信してみましょう。
+
+### テストスクリプト（Bash）
+
+```bash
+#!/bin/bash
+
+QUEUE_URL=$(aws sqs get-queue-url --queue-name lambda-etl-queue --query 'QueueUrl' --output text)
+
+# 5件のメッセージを連続送信
+for i in {1..5}
+do
+  echo "メッセージ $i を送信中..."
+  aws sqs send-message \
+    --queue-url $QUEUE_URL \
+    --message-body "{
+      \"records\": [
+        {
+          \"user_id\": $i,
+          \"name\": \"テストユーザー$i\",
+          \"email\": \"test$i@example.com\"
+        }
+      ]
+    }"
+  sleep 2
+done
+
+echo "送信完了"
+```
+
+### 実行と確認
+
+```bash
+# スクリプトに実行権限を付与
+chmod +x test_batch.sh
+
+# 実行
+./test_batch.sh
+
+# S3バケットに5つのCSVファイルが作成されることを確認
+aws s3 ls s3://lambda-etl-bucket-[your-name]-[date]/etl-output/
+```
+
+
+## パフォーマンスの確認
+
+### CloudWatch Insightsでクエリ実行
+
+1. CloudWatchコンソール → Logs Insights
+2. ロググループ `/aws/lambda/lambda-etl-processor` を選択
+3. 以下のクエリを実行
+
+**平均実行時間を確認：**
+```
+fields @timestamp, @duration
+| stats avg(@duration) as avg_duration, max(@duration) as max_duration, min(@duration) as min_duration
+```
+
+**エラー率を確認：**
+```
+filter @type = "REPORT"
+| stats count() as total, sum(@memorySize / 1000000) as total_memory
+| fields total, total_memory
+```
+
+
+## まとめ
+
+本章では、実際にETL処理の動作確認を行いました。
+
+**確認した内容：**
+- SQSへのメッセージ送信
+- Lambda関数の自動起動
+- CloudWatchログでの実行確認
+- S3へのCSVファイル出力
+- エラーハンドリングとDLQの動作
+- 各種トラブルシューティング手法
+
+これで、基本的なETL処理パイプラインが正常に動作することを確認できました。
+
+
+## 次章の内容
+
+次章では、GitHub Actionsを使った**CI/CDパイプライン**を構築します。
+コードの変更をGitHubにプッシュするだけで、自動的にテストが実行され、
+Lambda関数が更新されるワークフローを実装します。
+
+手動デプロイから脱却し、継続的インテグレーション・継続的デプロイの仕組みを整えましょう。
