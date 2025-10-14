@@ -54,9 +54,10 @@ AWS Lambdaを使ったデータ処理では、以下のような課題に直面�
 本書で扱う範囲は以下のとおりです。
 
 * LambdaでETL処理を構築し、CSVをS3に保存する一連の処理
-* Docker + Poetry によるローカル開発環境のセットアップ  
+* Docker + Poetry によるローカル開発環境のセットアップ
 * pytestによるローカルテスト
 * AWSコンソールでのSQS、Lambda、S3リソースの作成と設定
+* SQS→Lambda→S3の動作テスト
 * GitHub Actionsによる自動テスト・デプロイ
 * 基本的な監視・トラブルシューティング
 
@@ -68,7 +69,7 @@ AWS Lambdaを使ったデータ処理では、以下のような課題に直面�
 * Pythonの基本文法やvenv/pipの使い方
 * AWSアカウント作成や基本的なAWS知識
 * IAMロールやポリシーの高度な設計
-* Step FunctionsやAthenaなどの高度なAWS連携  
+* Step FunctionsやAthenaなどの高度なAWS連携
 * 大規模本番環境での高度なモニタリング設計
 * セキュリティの詳細設計やコスト最適化
 
