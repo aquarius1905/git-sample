@@ -22,11 +22,13 @@
 1. **AWSコンソール**で**SQS**サービスを開く
 2. 作成した `lambda-etl-queue` をクリック
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/6b4f4c73decb-20251014.jpg)
 
-3. 「**メッセージを送信および受信**」ボタンをクリック
 
-![](画像URL)
+3. 「**メッセージを送受信**」ボタンをクリック
+
+![](https://storage.googleapis.com/zenn-user-upload/cef2b153409c-20251014.jpg)
+
 
 4. 「**メッセージを送信**」セクションで以下のJSONを入力
 
@@ -55,11 +57,13 @@
 
 5. 「**メッセージを送信**」ボタンをクリック
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/e094801f2282-20251014.jpg)
+
 
 6. 送信成功のメッセージが表示されることを確認
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/f107bd51a8f7-20251014.jpeg)
+
 
 ### 1-2. AWS CLIでの送信（オプション）
 
