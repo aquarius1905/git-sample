@@ -287,11 +287,10 @@ chmod +x deploy.sh
 
 ![](https://storage.googleapis.com/zenn-user-upload/2a527cdd6712-20251002.jpeg)
 
-3. **ハンドラー**: `main.lambda_handler` に変更
+3. **ハンドラー**: `app.main.lambda_handler` に変更
 4. 「**保存**」をクリック
 
-![](https://storage.googleapis.com/zenn-user-upload/ef66d6620587-20251002.jpg)
-
+![](https://storage.googleapis.com/zenn-user-upload/749d801646b0-20251016.jpg)
 
 #### 基本設定（タイムアウト・メモリ）
 
