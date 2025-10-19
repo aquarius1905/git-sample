@@ -109,37 +109,27 @@ aws sqs send-message \
 2. 左側メニューから「**ログ → ロググループ**」をクリック
 3. `/aws/lambda/lambda-etl-processor` を検索して開く
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/1652b804c4c7-20251015.jpg)
 
 4. 最新のログストリームをクリック
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/f3b481c3c7d5-20251019.jpg)
 
 5. ログ内容を確認
 
 **正常実行時のログ例：**
 ```
-START RequestId: abc123...
-処理開始: 1件のメッセージを受信
-CSV生成完了: 3件のレコードを処理
-S3アップロード完了: etl-output/output_20251008T123456Z.csv
-END RequestId: abc123...
-REPORT RequestId: abc123... Duration: 1234.56 ms Billed Duration: 1235 ms Memory Size: 256 MB Max Memory Used: 89 MB
+INIT_START Runtime Version: ...
+START RequestId: 0020f7e9...
+[INFO]	2025-10-18T10:32:27.961Z	...	処理開始: 1件のメッセージを受信
+[INFO]	2025-10-18T10:32:29.739Z	...	CSV生成完了: 3件のレコードを処理
+[INFO]	2025-10-18T10:32:29.740Z	...	S3アップロード完了: etl-output/output_20251018T103229Z.csv
+END RequestId: 0020f7e9...
+REPORT RequestId: 0020f7e9... Duration: 1790.57 ms	Billed Duration: 2858 ms	Memory Size: 256 MB	Max Memory Used: 104 MB	Init Duration: 1066.76 ms
 ```
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/5c7215113691-20251019.jpg)
 
-### 2-2. Lambda関数の実行履歴確認
-
-1. **Lambda**コンソールで `lambda-etl-processor` を開く
-2. 「**モニタリング**」タブをクリック
-3. 「**CloudWatch Insightsで表示**」をクリック（オプション）
-
-![](画像URL)
-
-4. 実行回数、エラー率、実行時間などのメトリクスを確認
-
-![](画像URL)
 
 
 ## ステップ3：S3バケットの確認
@@ -158,6 +148,7 @@ REPORT RequestId: abc123... Duration: 1234.56 ms Billed Duration: 1235 ms Memory
 4. CSVファイルをダウンロードして内容を確認
 
 **期待されるCSVファイルの内容：**
+
 ```csv
 user_id,name,email
 1,山田太郎,taro.yamada@example.com
