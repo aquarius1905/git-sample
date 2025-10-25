@@ -1,26 +1,75 @@
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|   timestamp   |                                                                                                                                                                                                                                                                                                                                                           message                                                                                                                                                                                                                                                                                                                                                           |
-|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1760446012306 | INIT_START Runtime Version: python:3.12.v88 Runtime Version ARN: arn:aws:lambda:ap-northeast-1::runtime:4af3157c9dfde29be4e8f128147181e8978958ec7ddea506e754af7c3741a0a2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 1760446012402 | [WARNING] 2025-10-14T12:46:52.401Z  LAMBDA_WARNING: Unhandled exception. The most likely cause is an issue in the function code. However, in rare cases, a Lambda runtime update can cause unexpected function behavior. For functions using managed runtimes, runtime updates can be triggered by a function change, or can be applied automatically. To determine if the runtime has been updated, check the runtime version in the INIT_START log entry. If this error correlates with a change in the runtime version, you may be able to mitigate this error by temporarily rolling back to the previous runtime version. For more information, see https://docs.aws.amazon.com/lambda/latest/dg/runtimes-update.html  |
-| 1760446012402 | [ERROR] Runtime.ImportModuleError: Unable to import module 'main': No module named 'main' Traceback (most recent call last):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 1760446012460 | INIT_REPORT Init Duration: 154.03 ms Phase: init Status: error Error Type: Runtime.ImportModuleError                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 1760446012524 | [WARNING] 2025-10-14T12:46:52.524Z  LAMBDA_WARNING: Unhandled exception. The most likely cause is an issue in the function code. However, in rare cases, a Lambda runtime update can cause unexpected function behavior. For functions using managed runtimes, runtime updates can be triggered by a function change, or can be applied automatically. To determine if the runtime has been updated, check the runtime version in the INIT_START log entry. If this error correlates with a change in the runtime version, you may be able to mitigate this error by temporarily rolling back to the previous runtime version. For more information, see https://docs.aws.amazon.com/lambda/latest/dg/runtimes-update.html  |
-| 1760446012524 | [ERROR] Runtime.ImportModuleError: Unable to import module 'main': No module named 'main' Traceback (most recent call last):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 1760446012565 | INIT_REPORT Init Duration: 89.96 ms Phase: invoke Status: error Error Type: Runtime.ImportModuleError                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 1760446012565 | START RequestId: bd56628d-1d19-5eef-9927-03e555703eb1 Version: $LATEST                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 1760446012570 | END RequestId: bd56628d-1d19-5eef-9927-03e555703eb1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 1760446012570 | REPORT RequestId: bd56628d-1d19-5eef-9927-03e555703eb1 Duration: 102.32 ms Billed Duration: 103 ms Memory Size: 256 MB Max Memory Used: 46 MB Status: error Error Type: Runtime.ImportModuleError                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 1760446312179 | [WARNING] 2025-10-14T12:51:52.179Z  LAMBDA_WARNING: Unhandled exception. The most likely cause is an issue in the function code. However, in rare cases, a Lambda runtime update can cause unexpected function behavior. For functions using managed runtimes, runtime updates can be triggered by a function change, or can be applied automatically. To determine if the runtime has been updated, check the runtime version in the INIT_START log entry. If this error correlates with a change in the runtime version, you may be able to mitigate this error by temporarily rolling back to the previous runtime version. For more information, see https://docs.aws.amazon.com/lambda/latest/dg/runtimes-update.html  |
-| 1760446312179 | [ERROR] Runtime.ImportModuleError: Unable to import module 'main': No module named 'main' Traceback (most recent call last):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 1760446312222 | INIT_REPORT Init Duration: 90.82 ms Phase: invoke Status: error Error Type: Runtime.ImportModuleError                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 1760446312222 | START RequestId: 3dbdd26a-1229-5e81-a376-b3025bb467d0 Version: $LATEST                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 1760446312227 | END RequestId: 3dbdd26a-1229-5e81-a376-b3025bb467d0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 1760446312227 | REPORT RequestId: 3dbdd26a-1229-5e81-a376-b3025bb467d0 Duration: 107.96 ms Billed Duration: 108 ms Memory Size: 256 MB Max Memory Used: 46 MB Status: error Error Type: Runtime.ImportModuleError                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 1760446612181 | [WARNING] 2025-10-14T12:56:52.181Z  LAMBDA_WARNING: Unhandled exception. The most likely cause is an issue in the function code. However, in rare cases, a Lambda runtime update can cause unexpected function behavior. For functions using managed runtimes, runtime updates can be triggered by a function change, or can be applied automatically. To determine if the runtime has been updated, check the runtime version in the INIT_START log entry. If this error correlates with a change in the runtime version, you may be able to mitigate this error by temporarily rolling back to the previous runtime version. For more information, see https://docs.aws.amazon.com/lambda/latest/dg/runtimes-update.html  |
-| 1760446612181 | [ERROR] Runtime.ImportModuleError: Unable to import module 'main': No module named 'main' Traceback (most recent call last):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 1760446612221 | INIT_REPORT Init Duration: 86.46 ms Phase: invoke Status: error Error Type: Runtime.ImportModuleError                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 1760446612221 | START RequestId: 391587e9-7b1e-5ba0-8dc4-e68131d79b0f Version: $LATEST                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 1760446612225 | END RequestId: 391587e9-7b1e-5ba0-8dc4-e68131d79b0f                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 1760446612225 | REPORT RequestId: 391587e9-7b1e-5ba0-8dc4-e68131d79b0f Duration: 98.30 ms Billed Duration: 99 ms Memory Size: 256 MB Max Memory Used: 46 MB Status: error Error Type: Runtime.ImportModuleError                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## LocalStackの起動方法
+
+docker-compose.ymlを作成します：
+````yaml
+version: '3.8'
+services:
+  localstack:
+    image: localstack/localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,sqs,lambda
+      - DEBUG=1
+    volumes:
+      - "./volume:/var/lib/localstack"
+````
+
+起動：
+````bash
+docker-compose up -d
+````
+
+### 3. **AWS CLIの認証情報設定について触れていない**
+初心者は「LocalStackにどうやって認証するの?」と疑問に思います。
+
+**実行例の前に追記：**
+````markdown
+LocalStackでは認証情報はダミーで構いません：
+```bash
+aws configure
+# AWS Access Key ID: test
+# AWS Secret Access Key: test
+# Default region: us-east-1
+```
+
+## ⚠️ 軽微な修正点
+
+### 4. **実行例の出力が不正確**
+```bash
+aws --endpoint-url=http://localhost:4566 s3 mb s3://test-bucket
+# 出力: make_bucket: test-bucket
+
+aws --endpoint-url=http://localhost:4566 s3 ls
+# 出力: 2025-10-07 10:00:00 test-bucket
+```
+のように、コマンドごとの出力を分けるべきです。
+
+### 5. **表現の曖昧さ**
+- 「Dockerさえ使えれば」→「Dockerがインストールされていれば」の方が初心者に優しい
+- 「コードをほぼそのまま」→「エンドポイントURLを変更するだけで」の方が具体的
+
+### 6. **制限事項への言及がない**
+```markdown
+## LocalStackの制限事項
+- AWSの完全な再現ではなく、一部の機能は動作が異なる場合があります
+- 本番環境のテストには実際のAWSを使用することを推奨します
+```
+
+## 📝 記事構成の提案
+
+現在の記事は「概要説明」に偏っています。タイトルが「再現する**方法**」なので、以下の構成がおすすめです：
+
+1. はじめに
+2. LocalStackとは
+3. なぜLocalStackを使うのか
+4. **環境構築（新規）**
+   - Dockerのインストール確認
+   - LocalStackの起動
+   - AWS CLIの設定
+5. 実行例（S3の例）
+6. よく使われる用途
+7. **LocalStackの制限事項（新規）**
+8. まとめ
+
+初心者が「この記事を読めば実際に動かせる」状態を目指すと、より価値のある記事になると思います！

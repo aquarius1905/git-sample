@@ -65,7 +65,7 @@
 ![](https://storage.googleapis.com/zenn-user-upload/f107bd51a8f7-20251014.jpeg)
 
 
-### 1-2. AWS CLIでの送信（オプション）
+### 1-2. （補足）AWS CLIでの送信
 
 コマンドラインからメッセージを送信する場合：
 
@@ -139,11 +139,15 @@ REPORT RequestId: 0020f7e9... Duration: 1790.57 ms	Billed Duration: 2858 ms	Memo
 1. **S3**コンソールを開く
 2. 作成したバケット `lambda-etl-bucket-[your-name]-[date]` をクリック
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/1bbd9cf36e12-20251024.jpg)
+
 
 3. `etl-output/` フォルダ内に CSV ファイルが作成されていることを確認
 
-![](画像URL)
+![](https://storage.googleapis.com/zenn-user-upload/e2b4aac1cb01-20251024.jpg)
+
+![](https://storage.googleapis.com/zenn-user-upload/b9502a804258-20251024.jpg)
+
 
 4. CSVファイルをダウンロードして内容を確認
 
@@ -156,7 +160,7 @@ user_id,name,email
 3,鈴木一郎,ichiro.suzuki@example.com
 ```
 
-### 3-2. AWS CLIでの確認（オプション）
+### 3-2. （補足）AWS CLIでの確認
 
 ```bash
 # バケット内のファイル一覧を表示
@@ -192,15 +196,26 @@ cat downloaded.csv
 1. 上記のメッセージをSQSに送信
 2. CloudWatchログを確認
 
-**期待されるログ：**
+**ログ：**
 ```
-処理開始: 1件のメッセージを受信
-バリデーションエラー: ...
+INIT_START Runtime Version: python:3.12.v89	Runtime Version ARN: arn:aws:lambda:ap-northeast-1::runtime:644f999c44288c3dd580a0b58d0576fe347ce4d089106e2c52ed35b626e0fb3c
+START RequestId: 5be7fb4b-f041-5329-b407-9a3d491d63c9 Version: $LATEST
+[INFO]	2025-10-25T11:40:23.256Z	5be7fb4b-f041-5329-b407-9a3d491d63c9	処理開始: 1件のメッセージを受信
+[ERROR]	2025-10-25T11:40:23.257Z	5be7fb4b-f041-5329-b407-9a3d491d63c9	バリデーションエラー: 1 validation error for SQSMessageBody
+records.0.user_id
+  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='invalid_string', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/int_parsing
+END RequestId: 5be7fb4b-f041-5329-b407-9a3d491d63c9
+REPORT RequestId: 5be7fb4b-f041-5329-b407-9a3d491d63c9	Duration: 2.54 ms	Billed Duration: 1119 ms	Memory Size: 256 MB	Max Memory Used: 84 MB	Init Duration: 1115.52 ms
 ```
 
-3. メッセージがデッドレターキュー（DLQ）に移動したことを確認
+**期待される動作：**
+- CloudWatchログにエラーが記録される
+- メッセージは削除される（**DLQには移動しない**）
 
-![](画像URL)
+> バリデーションエラーはデータ形式の問題であり、
+> 再処理しても同じエラーになるため、メッセージは削除されます。
+
 
 ### 4-2. 空のレコードのテスト
 
