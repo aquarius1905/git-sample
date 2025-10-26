@@ -228,8 +228,12 @@ REPORT RequestId: 5be7fb4b-f041-5329-b407-9a3d491d63c9	Duration: 2.54 ms	Billed 
 
 **期待されるログ：**
 ```
-処理開始: 1件のメッセージを受信
-データエラー発生: 処理対象のレコードが存在しません
+INIT_START Runtime Version: python:3.12.v89	Runtime Version ARN: arn:aws:lambda:ap-northeast-1::runtime:644f999c44288c3dd580a0b58d0576fe347ce4d089106e2c52ed35b626e0fb3c
+START RequestId: 6bd2f8ef-d3d7-5ead-8228-99982b24bf53 Version: $LATEST
+[INFO]	2025-10-26T10:23:54.975Z	6bd2f8ef-d3d7-5ead-8228-99982b24bf53	処理開始: 1件のメッセージを受信
+[ERROR]	2025-10-26T10:23:54.975Z	6bd2f8ef-d3d7-5ead-8228-99982b24bf53	データエラー発生: 処理対象のレコードが存在しません
+END RequestId: 6bd2f8ef-d3d7-5ead-8228-99982b24bf53
+REPORT RequestId: 6bd2f8ef-d3d7-5ead-8228-99982b24bf53	Duration: 2.52 ms	Billed Duration: 1126 ms	Memory Size: 256 MB	Max Memory Used: 84 MB	Init Duration: 1122.80 ms
 ```
 
 ### 4-3. 不正なJSON形式のテスト
@@ -241,8 +245,11 @@ REPORT RequestId: 5be7fb4b-f041-5329-b407-9a3d491d63c9	Duration: 2.54 ms	Billed 
 
 **期待されるログ：**
 ```
-処理開始: 1件のメッセージを受信
-JSON解析エラー: ...
+START RequestId: 3e520f9c-5397-5ef6-8082-6eebaaae8f08 Version: $LATEST
+[INFO]	2025-10-26T10:25:16.506Z	3e520f9c-5397-5ef6-8082-6eebaaae8f08	処理開始: 1件のメッセージを受信
+[ERROR]	2025-10-26T10:25:16.506Z	3e520f9c-5397-5ef6-8082-6eebaaae8f08	JSON解析エラー: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)
+END RequestId: 3e520f9c-5397-5ef6-8082-6eebaaae8f08
+REPORT RequestId: 3e520f9c-5397-5ef6-8082-6eebaaae8f08	Duration: 17.58 ms	Billed Duration: 18 ms	Memory Size: 256 MB	Max Memory Used: 84 MB	
 ```
 
 
